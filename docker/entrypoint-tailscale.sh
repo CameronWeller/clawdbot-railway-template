@@ -7,7 +7,9 @@ APP_GROUP="${APP_GROUP:-openclaw}"
 ensure_dir() {
   local dir="$1"
   mkdir -p "$dir" || true
-  if [ ! -w "$dir" ]; then
+  # When running as root, always chown so openclaw user can write after gosu.
+  # The "! -w" check fails for root (root can always write), so we'd never chown otherwise.
+  if [ "$(id -u)" = "0" ] || [ ! -w "$dir" ]; then
     chown -R "${APP_USER}:${APP_GROUP}" "$dir" || true
   fi
 }
