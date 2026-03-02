@@ -45,4 +45,17 @@ Use this file to track work that was started but not completed in the same sessi
 
 ## Closed Items
 
-_Move finished items here with resolution details._
+### UW-20260302-02 - Tailscale SSH integration and credential segregation
+- Status: closed (2026-03-02)
+- Owner: @cwelleron
+- Area: `Dockerfile-tailscale`, `docker/entrypoint-tailscale.sh`, `docs/SECURITY.md`, `README.md`
+- Context: Added a Tailscale-enabled Docker variant (`Dockerfile-tailscale`) that starts `tailscaled` in userspace networking mode and runs `tailscale up --ssh` at container startup. This enables passwordless SSH access via `tailscale ssh <hostname>` from any device on the tailnet without exposing an SSH port.
+- Resolution:
+  - Created `Dockerfile-tailscale` installing Tailscale from the official Debian repo.
+  - Created `docker/entrypoint-tailscale.sh` that starts `tailscaled`, calls `tailscale up`, then drops to the `openclaw` user.
+  - Security-hardened: replaced personal hostname `claw-archimedes` with generic default `openclaw-railway`; `TS_AUTHKEY` is always injected at runtime, never baked into the image.
+  - Created `access-controls.example.json` as a sanitized ACL policy template.
+  - Added `access controls.json` to `.gitignore` to prevent real email/tag/name from ever being committed.
+  - Created `docs/SECURITY.md` with full credential segregation guide, contributor checklist, and Tailscale flag explanations.
+  - Expanded `README.md` with a Security section and improved Tailscale SSH instructions.
+- Links: commits `2fc9ea4`, `19b9bd9`

@@ -9,6 +9,7 @@ This repo packages **OpenClaw** for Railway with a small **/setup** web wizard s
 - Persistent state via **Railway Volume** (so config/credentials/memory survive redeploys)
 - One-click **Export backup** (so users can migrate off Railway later)
 - **Import backup** from `/setup` (advanced recovery)
+- **Optional Tailscale SSH** via `Dockerfile-tailscale` — passwordless, key-based access with no exposed port
 - **Unfinished work tracker** at `docs/UNFINISHED_WORK.md` for blocked/deferred follow-ups
 
 ## How it works (high level)
@@ -51,16 +52,28 @@ Then:
 
 ### Tailscale SSH (optional)
 
-For passwordless SSH access via Tailscale:
+Use `Dockerfile-tailscale` for passwordless, key-based SSH access through your Tailscale network — no exposed port, no password prompt.
+
+**Quick setup:**
 
 1. Set `RAILWAY_DOCKERFILE_PATH=Dockerfile-tailscale` in Railway Variables.
-2. Add `TS_AUTHKEY` as a **secret** variable (generate at [Tailscale Admin](https://login.tailscale.com/admin/settings/keys)). Never commit auth keys.
-3. Set `TS_HOSTNAME` to a name meaningful to you (e.g. `myapp-railway`). Default is `openclaw-railway`.
-4. Deploy. From another Tailscale device: `tailscale ssh <TS_HOSTNAME>`.
+2. Add `TS_AUTHKEY` as a **secret** Railway Variable (never commit it). Generate one at [Tailscale Admin → Settings → Keys](https://login.tailscale.com/admin/settings/keys). Ephemeral keys are recommended for cloud containers.
+3. Set `TS_HOSTNAME` to a name meaningful to you (e.g. `myapp-railway`). Default is the generic `openclaw-railway`.
+4. Deploy. SSH from any Tailscale device: `tailscale ssh <TS_HOSTNAME>`.
 
-> ACL policy: see `access-controls.example.json` for a sanitized template. Copy it to the
-> Tailscale admin console and substitute your own email and tag. Never commit your real
-> `access controls.json` — it is git-ignored to prevent accidental exposure.
+**Key env vars:**
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `TS_AUTHKEY` | _(empty — must set)_ | Tailscale auth key. Secret. Never commit. |
+| `TS_HOSTNAME` | `openclaw-railway` | Node name in your tailnet. Set to something meaningful to you. |
+| `TS_EXTRA_ARGS` | `--accept-routes --accept-dns=false` | Extra flags passed to `tailscale up`. |
+| `TS_USERSPACE` | `true` | Enables userspace networking (required without `/dev/net/tun`). |
+
+**ACL policy:**
+See `access-controls.example.json` for a sanitized template. Copy it to your [Tailscale admin console](https://login.tailscale.com/admin/acls) and substitute your own email and tag. Your real `access controls.json` is git-ignored — never commit it.
+
+> For the full setup guide including flag explanations, SSH limitations under userspace networking, and the contributor security checklist, see [docs/SECURITY.md](docs/SECURITY.md).
 
 ## Support / community
 
@@ -117,6 +130,29 @@ python3 -m venv /data/venv || true
 
 # Example: ensure npm/pnpm dirs exist
 mkdir -p /data/npm /data/npm-cache /data/pnpm /data/pnpm-store
+```
+
+## Security
+
+> Full details, contributor checklist, and Tailscale ACL setup: **[docs/SECURITY.md](docs/SECURITY.md)**
+
+### What goes where
+
+| Item | Where it lives |
+|---|---|
+| `SETUP_PASSWORD`, `OPENCLAW_GATEWAY_TOKEN`, `TS_AUTHKEY` | Railway Variables only — never in the repo |
+| `TS_HOSTNAME` (your personal value) | Railway Variables — the image default is the generic `openclaw-railway` |
+| Tailscale ACL policy with your email/tag | Local `access controls.json` — **git-ignored** |
+| Sanitized ACL template | `access-controls.example.json` — safe to commit and share |
+
+### Credential hygiene — quick rules
+
+- **Never** commit a `tskey-` string, email address, or personal hostname.
+- **Always** use Railway secret variables for auth keys and passwords.
+- Run this before any commit to catch accidental leaks:
+
+```bash
+git diff --cached | grep -iE "tskey-|@gmail|@.*\.com|password\s*=\s*\S"
 ```
 
 ## Troubleshooting
