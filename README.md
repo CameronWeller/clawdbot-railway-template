@@ -9,6 +9,7 @@ This repo packages **OpenClaw** for Railway with a small **/setup** web wizard s
 - Persistent state via **Railway Volume** (so config/credentials/memory survive redeploys)
 - One-click **Export backup** (so users can migrate off Railway later)
 - **Import backup** from `/setup` (advanced recovery)
+- **Unfinished work tracker** at `docs/UNFINISHED_WORK.md` for blocked/deferred follow-ups
 
 ## How it works (high level)
 
@@ -26,7 +27,7 @@ In Railway Template Composer:
 3) Set the following variables:
 
 Required:
-- `SETUP_PASSWORD` — user-provided password to access `/setup` and the Control UI (`/openclaw`) via HTTP Basic auth
+- `SETUP_PASSWORD` — user-provided password to access `/setup` and the Control UI (`/openclaw`) via HTTP Basic auth. The wrapper exits at startup if this is missing.
 
 Recommended:
 - `OPENCLAW_STATE_DIR=/data/.openclaw`

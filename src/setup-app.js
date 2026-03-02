@@ -171,7 +171,7 @@
     fetch('/setup/api/run', {
       method: 'POST',
       credentials: 'same-origin',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'x-openclaw-csrf': '1' },
       body: JSON.stringify(payload)
     }).then(function (res) {
       return res.text();
@@ -194,7 +194,7 @@
 
     return httpJson('/setup/api/console/run', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'x-openclaw-csrf': '1' },
       body: JSON.stringify({ cmd: cmd, arg: arg })
     }).then(function (j) {
       if (consoleOutEl) consoleOutEl.textContent = (j.output || JSON.stringify(j, null, 2));
@@ -228,7 +228,7 @@
     if (configOutEl) configOutEl.textContent = 'Saving...\n';
     return httpJson('/setup/api/config/raw', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'x-openclaw-csrf': '1' },
       body: JSON.stringify({ content: configTextEl.value })
     }).then(function (j) {
       if (configOutEl) configOutEl.textContent = 'Saved: ' + (j.path || '') + '\nGateway restarted.\n';
@@ -257,7 +257,7 @@
       return fetch('/setup/import', {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'content-type': 'application/gzip' },
+        headers: { 'content-type': 'application/gzip', 'x-openclaw-csrf': '1' },
         body: buf
       });
     }).then(function (res) {
@@ -290,7 +290,7 @@
       fetch('/setup/api/pairing/approve', {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', 'x-openclaw-csrf': '1' },
         body: JSON.stringify({ channel: channel, code: code.trim() })
       }).then(function (r) { return r.text(); })
         .then(function (t) { logEl.textContent += t + '\n'; })
@@ -309,7 +309,7 @@
 
     return httpJson('/setup/api/devices/approve', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'x-openclaw-csrf': '1' },
       body: JSON.stringify({ requestId: requestId })
     }).then(function (j) {
       if (devicesListEl) devicesListEl.textContent = j.output || 'Approved.';
@@ -357,7 +357,11 @@
   document.getElementById('reset').onclick = function () {
     if (!confirm('Reset setup? This deletes the config file so onboarding can run again.')) return;
     logEl.textContent = 'Resetting...\n';
-    fetch('/setup/api/reset', { method: 'POST', credentials: 'same-origin' })
+    fetch('/setup/api/reset', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'x-openclaw-csrf': '1' }
+    })
       .then(function (res) { return res.text(); })
       .then(function (t) { logEl.textContent += t + '\n'; return refreshStatus(); })
       .catch(function (e) { logEl.textContent += 'Error: ' + String(e) + '\n'; });

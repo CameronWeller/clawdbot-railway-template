@@ -13,7 +13,9 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 # Install Bun (openclaw build uses it)
-RUN curl -fsSL https://bun.sh/install | bash
+ARG BUN_VERSION=1.2.22
+RUN curl -fsSL https://bun.sh/install | bash -s -- "bun-v${BUN_VERSION}" \
+  && /root/.bun/bin/bun --version | grep -Fx "${BUN_VERSION}"
 ENV PATH="/root/.bun/bin:${PATH}"
 
 RUN corepack enable
@@ -33,7 +35,7 @@ RUN set -eux; \
     sed -i -E 's/"openclaw"[[:space:]]*:[[:space:]]*"workspace:[^"]+"/"openclaw": "*"/g' "$f"; \
   done
 
-RUN pnpm install --no-frozen-lockfile
+RUN pnpm install --frozen-lockfile
 RUN pnpm build
 ENV OPENCLAW_PREFER_PNPM=1
 RUN pnpm ui:install && pnpm ui:build
@@ -47,6 +49,7 @@ RUN apt-get update \
   && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     ca-certificates \
     tini \
+    gosu \
     python3 \
     python3-venv \
   && rm -rf /var/lib/apt/lists/*
@@ -66,8 +69,8 @@ ENV PATH="/data/npm/bin:/data/pnpm:${PATH}"
 WORKDIR /app
 
 # Wrapper deps
-COPY package.json ./
-RUN npm install --omit=dev && npm cache clean --force
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
 
 # Copy built openclaw
 COPY --from=openclaw-build /openclaw /openclaw
@@ -77,6 +80,10 @@ RUN printf '%s\n' '#!/usr/bin/env bash' 'exec node /openclaw/dist/entry.js "$@"'
   && chmod +x /usr/local/bin/openclaw
 
 COPY src ./src
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh \
+  && groupadd --system --gid 10001 openclaw \
+  && useradd --system --uid 10001 --gid openclaw --create-home --home-dir /home/openclaw openclaw
 
 # The wrapper listens on $PORT.
 # IMPORTANT: Do not set a default PORT here.
@@ -84,6 +91,6 @@ COPY src ./src
 # If we force a different port, deployments can come up but the domain will route elsewhere.
 EXPOSE 8080
 
-# Ensure PID 1 reaps zombies and forwards signals.
-ENTRYPOINT ["tini", "--"]
+# Ensure PID 1 reaps zombies and forwards signals, and drop to non-root before app start.
+ENTRYPOINT ["tini", "--", "/usr/local/bin/entrypoint.sh"]
 CMD ["node", "src/server.js"]

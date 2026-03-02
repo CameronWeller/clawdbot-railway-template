@@ -42,6 +42,10 @@ const WORKSPACE_DIR =
 
 // Protect /setup with a user-provided password.
 const SETUP_PASSWORD = process.env.SETUP_PASSWORD?.trim();
+if (!SETUP_PASSWORD) {
+  console.error("[wrapper] FATAL: SETUP_PASSWORD is required. Refusing to start.");
+  process.exit(1);
+}
 
 // Gateway admin token (protects OpenClaw gateway + Control UI).
 // Must be stable across restarts. If not provided via env, persist it in the state dir.
@@ -271,26 +275,79 @@ async function restartGateway() {
   return ensureGatewayRunning();
 }
 
-function requireSetupAuth(req, res, next) {
-  if (!SETUP_PASSWORD) {
-    return res
-      .status(500)
-      .type("text/plain")
-      .send("SETUP_PASSWORD is not set. Set it in Railway Variables before using /setup.");
-  }
-
+function parseBasicPassword(req) {
   const header = req.headers.authorization || "";
   const [scheme, encoded] = header.split(" ");
-  if (scheme !== "Basic" || !encoded) {
-    res.set("WWW-Authenticate", 'Basic realm="OpenClaw Setup"');
-    return res.status(401).send("Auth required");
+  if (!/^Basic$/i.test(scheme) || !encoded) return null;
+
+  let decoded = "";
+  try {
+    decoded = Buffer.from(encoded, "base64").toString("utf8");
+  } catch {
+    return null;
   }
-  const decoded = Buffer.from(encoded, "base64").toString("utf8");
+
   const idx = decoded.indexOf(":");
-  const password = idx >= 0 ? decoded.slice(idx + 1) : "";
-  if (password !== SETUP_PASSWORD) {
-    res.set("WWW-Authenticate", 'Basic realm="OpenClaw Setup"');
-    return res.status(401).send("Invalid password");
+  if (idx < 0) return "";
+  return decoded.slice(idx + 1);
+}
+
+function timingSafeEqualString(a, b) {
+  const aBuf = Buffer.from(String(a), "utf8");
+  const bBuf = Buffer.from(String(b), "utf8");
+  if (aBuf.length !== bBuf.length) return false;
+  return crypto.timingSafeEqual(aBuf, bBuf);
+}
+
+function isSetupPasswordAuthorized(req) {
+  const password = parseBasicPassword(req);
+  if (password === null) return false;
+  return timingSafeEqualString(password, SETUP_PASSWORD);
+}
+
+function challengeBasic(res, realm, message = "Auth required") {
+  res.set("WWW-Authenticate", `Basic realm="${realm}"`);
+  return res.status(401).send(message);
+}
+
+function requireSetupCsrf(req, res, next) {
+  const method = String(req.method || "GET").toUpperCase();
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return next();
+
+  // First-party setup UI sends this header; cross-site forms cannot.
+  if (req.headers["x-openclaw-csrf"] === "1") return next();
+
+  const host = String(req.headers["x-forwarded-host"] || req.headers.host || "")
+    .split(",")[0]
+    .trim();
+  const proto = String(req.headers["x-forwarded-proto"] || "http")
+    .split(",")[0]
+    .trim();
+  if (!host) {
+    return res.status(403).json({ ok: false, error: "CSRF check failed (missing host)" });
+  }
+
+  const expectedOrigin = `${proto}://${host}`;
+  const origin = String(req.headers.origin || "")
+    .split(",")[0]
+    .trim();
+  if (origin && origin === expectedOrigin) return next();
+
+  const referer = String(req.headers.referer || "").trim();
+  if (referer) {
+    try {
+      if (new URL(referer).origin === expectedOrigin) return next();
+    } catch {
+      // ignore malformed referer
+    }
+  }
+
+  return res.status(403).json({ ok: false, error: "CSRF check failed" });
+}
+
+function requireSetupAuth(req, res, next) {
+  if (!isSetupPasswordAuthorized(req)) {
+    return challengeBasic(res, "OpenClaw Setup");
   }
   return next();
 }
@@ -341,15 +398,9 @@ app.get("/healthz", async (_req, res) => {
     ok: true,
     wrapper: {
       configured: isConfigured(),
-      stateDir: STATE_DIR,
-      workspaceDir: WORKSPACE_DIR,
     },
     gateway: {
-      target: GATEWAY_TARGET,
       reachable: gatewayReachable,
-      lastError: lastGatewayError,
-      lastExit: lastGatewayExit,
-      lastDoctorAt,
     },
   });
 });
@@ -703,7 +754,7 @@ function runCmd(cmd, args, opts = {}) {
   });
 }
 
-app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
+app.post("/setup/api/run", requireSetupAuth, requireSetupCsrf, async (req, res) => {
   try {
     const respondJson = (status, body) => {
       if (res.writableEnded || res.headersSent) return;
@@ -989,7 +1040,7 @@ const ALLOWED_CONSOLE_COMMANDS = new Set([
   "openclaw.plugins.enable",
 ]);
 
-app.post("/setup/api/console/run", requireSetupAuth, async (req, res) => {
+app.post("/setup/api/console/run", requireSetupAuth, requireSetupCsrf, async (req, res) => {
   const payload = req.body || {};
   const cmd = String(payload.cmd || "").trim();
   const arg = String(payload.arg || "").trim();
@@ -1090,7 +1141,7 @@ app.get("/setup/api/config/raw", requireSetupAuth, async (_req, res) => {
   }
 });
 
-app.post("/setup/api/config/raw", requireSetupAuth, async (req, res) => {
+app.post("/setup/api/config/raw", requireSetupAuth, requireSetupCsrf, async (req, res) => {
   try {
     const content = String((req.body && req.body.content) || "");
     if (content.length > 500_000) {
@@ -1119,7 +1170,7 @@ app.post("/setup/api/config/raw", requireSetupAuth, async (req, res) => {
   }
 });
 
-app.post("/setup/api/pairing/approve", requireSetupAuth, async (req, res) => {
+app.post("/setup/api/pairing/approve", requireSetupAuth, requireSetupCsrf, async (req, res) => {
   const { channel, code } = req.body || {};
   if (!channel || !code) {
     return res.status(400).json({ ok: false, error: "Missing channel or code" });
@@ -1136,7 +1187,7 @@ app.get("/setup/api/devices/pending", requireSetupAuth, async (_req, res) => {
   return res.status(r.code === 0 ? 200 : 500).json({ ok: r.code === 0, requestIds, output });
 });
 
-app.post("/setup/api/devices/approve", requireSetupAuth, async (req, res) => {
+app.post("/setup/api/devices/approve", requireSetupAuth, requireSetupCsrf, async (req, res) => {
   const requestId = String((req.body && req.body.requestId) || "").trim();
   if (!requestId) return res.status(400).json({ ok: false, error: "Missing device request ID" });
   if (!/^[A-Za-z0-9_-]+$/.test(requestId)) return res.status(400).json({ ok: false, error: "Invalid device request ID" });
@@ -1144,7 +1195,7 @@ app.post("/setup/api/devices/approve", requireSetupAuth, async (req, res) => {
   return res.status(r.code === 0 ? 200 : 500).json({ ok: r.code === 0, output: redactSecrets(r.output) });
 });
 
-app.post("/setup/api/reset", requireSetupAuth, async (_req, res) => {
+app.post("/setup/api/reset", requireSetupAuth, requireSetupCsrf, async (_req, res) => {
   // Reset: stop gateway (frees memory) + delete config file(s) so /setup can rerun.
   // Keep credentials/sessions/workspace by default.
   try {
@@ -1237,6 +1288,12 @@ function looksSafeTarPath(p) {
   return true;
 }
 
+function looksSafeTarEntry(entry) {
+  const type = entry?.type;
+  // Block non-file entries that can be used for path/link traversal tricks.
+  return type !== "SymbolicLink" && type !== "Link" && type !== "CharacterDevice" && type !== "BlockDevice" && type !== "FIFO";
+}
+
 async function readBodyBuffer(req, maxBytes) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -1257,7 +1314,7 @@ async function readBodyBuffer(req, maxBytes) {
 
 // Import a backup created by /setup/export.
 // This is intentionally limited to restoring into /data to avoid overwriting arbitrary host paths.
-app.post("/setup/import", requireSetupAuth, async (req, res) => {
+app.post("/setup/import", requireSetupAuth, requireSetupCsrf, async (req, res) => {
   try {
     const dataRoot = "/data";
     if (!isUnderDir(STATE_DIR, dataRoot) || !isUnderDir(WORKSPACE_DIR, dataRoot)) {
@@ -1281,21 +1338,23 @@ app.post("/setup/import", requireSetupAuth, async (req, res) => {
     // We only allow safe relative paths, and we intentionally do NOT delete existing files.
     // (Users can reset/redeploy or manually clean the volume if desired.)
     const tmpPath = path.join(os.tmpdir(), `openclaw-import-${Date.now()}.tar.gz`);
-    fs.writeFileSync(tmpPath, buf);
-
-    await tar.x({
-      file: tmpPath,
-      cwd: dataRoot,
-      gzip: true,
-      strict: true,
-      onwarn: () => {},
-      filter: (p) => {
-        // Allow only paths that look safe.
-        return looksSafeTarPath(p);
-      },
-    });
-
-    try { fs.rmSync(tmpPath, { force: true }); } catch {}
+    fs.writeFileSync(tmpPath, buf, { mode: 0o600 });
+    try {
+      await tar.x({
+        file: tmpPath,
+        cwd: dataRoot,
+        gzip: true,
+        preservePaths: false,
+        strict: true,
+        onwarn: () => {},
+        filter: (p, entry) => {
+          // Allow only safe relative file/dir entries.
+          return looksSafeTarPath(p) && looksSafeTarEntry(entry);
+        },
+      });
+    } finally {
+      try { fs.rmSync(tmpPath, { force: true }); } catch {}
+    }
 
     // Restart gateway after restore.
     if (isConfigured()) {
@@ -1333,21 +1392,37 @@ proxy.on("error", (err, _req, res) => {
 // not just the /setup routes.  Healthcheck is excluded so Railway probes work.
 function requireDashboardAuth(req, res, next) {
   if (req.path === "/healthz" || req.path === "/setup/healthz") return next();
-  if (!SETUP_PASSWORD) return next(); // no password configured → open
-  const header = req.headers.authorization || "";
-  const [scheme, encoded] = header.split(" ");
-  if (scheme !== "Basic" || !encoded) {
-    res.set("WWW-Authenticate", 'Basic realm="OpenClaw Dashboard"');
-    return res.status(401).send("Auth required");
+
+  if (!isSetupPasswordAuthorized(req)) {
+    return challengeBasic(res, "OpenClaw Dashboard");
   }
-  const decoded = Buffer.from(encoded, "base64").toString("utf8");
-  const idx = decoded.indexOf(":");
-  const password = idx >= 0 ? decoded.slice(idx + 1) : "";
-  if (password !== SETUP_PASSWORD) {
-    res.set("WWW-Authenticate", 'Basic realm="OpenClaw Dashboard"');
-    return res.status(401).send("Invalid password");
-  }
+
+  // We validated Basic auth at the wrapper layer; avoid forwarding it upstream.
+  delete req.headers.authorization;
   return next();
+}
+
+function rejectUpgradeUnauthorized(socket, realm) {
+  try {
+    socket.write(
+      [
+        "HTTP/1.1 401 Unauthorized",
+        `WWW-Authenticate: Basic realm="${realm}"`,
+        "Connection: close",
+        "Content-Type: text/plain",
+        "Content-Length: 14",
+        "",
+        "Auth required\n",
+      ].join("\r\n"),
+    );
+  } catch {
+    // ignore write errors
+  }
+  try {
+    socket.destroy();
+  } catch {
+    // ignore close errors
+  }
 }
 
 // --- Gateway token injection ---
@@ -1405,9 +1480,6 @@ const server = app.listen(PORT, "0.0.0.0", async () => {
 
   console.log(`[wrapper] gateway token: ${OPENCLAW_GATEWAY_TOKEN ? "(set)" : "(missing)"}`);
   console.log(`[wrapper] gateway target: ${GATEWAY_TARGET}`);
-  if (!SETUP_PASSWORD) {
-    console.warn("[wrapper] WARNING: SETUP_PASSWORD is not set; /setup will error.");
-  }
 
   // Optional operator hook to install/persist extra tools under /data.
   // This is intentionally best-effort and should be used to set up persistent
@@ -1459,9 +1531,13 @@ const server = app.listen(PORT, "0.0.0.0", async () => {
 });
 
 server.on("upgrade", async (req, socket, head) => {
-  // Note: browsers cannot attach arbitrary HTTP headers (including Authorization: Basic)
-  // in WebSocket handshakes. Do not enforce dashboard Basic auth at the upgrade layer.
-  // The gateway authenticates at the protocol layer and we inject the gateway token below.
+  // WebSockets cannot carry CSRF headers, so we enforce the same Basic auth boundary here.
+  if (!isSetupPasswordAuthorized(req)) {
+    rejectUpgradeUnauthorized(socket, "OpenClaw Dashboard");
+    return;
+  }
+  // We validated dashboard Basic auth at the wrapper layer; do not forward it.
+  delete req.headers.authorization;
 
   if (!isConfigured()) {
     socket.destroy();
