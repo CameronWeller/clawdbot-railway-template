@@ -1445,33 +1445,23 @@ function rejectUpgradeUnauthorized(socket, realm) {
 // the token into proxied requests at the wrapper level.
 function attachGatewayAuthHeader(req) {
   if (!req?.headers || !OPENCLAW_GATEWAY_TOKEN) return;
-  if (!req.headers.authorization) {
-    req.headers.authorization = `Bearer ${OPENCLAW_GATEWAY_TOKEN}`;
-  }
+  // Always enforce wrapper-managed gateway auth to avoid stale browser/client tokens.
+  req.headers.authorization = `Bearer ${OPENCLAW_GATEWAY_TOKEN}`;
   // Some OpenClaw builds/middlewares can consume an explicit token header.
-  if (!req.headers["x-openclaw-token"]) {
-    req.headers["x-openclaw-token"] = OPENCLAW_GATEWAY_TOKEN;
-  }
+  req.headers["x-openclaw-token"] = OPENCLAW_GATEWAY_TOKEN;
 }
 
 proxy.on("proxyReq", (proxyReq) => {
   if (!OPENCLAW_GATEWAY_TOKEN) return;
-  if (!proxyReq.getHeader("authorization")) {
-    proxyReq.setHeader("Authorization", `Bearer ${OPENCLAW_GATEWAY_TOKEN}`);
-  }
-  if (!proxyReq.getHeader("x-openclaw-token")) {
-    proxyReq.setHeader("x-openclaw-token", OPENCLAW_GATEWAY_TOKEN);
-  }
+  proxyReq.setHeader("Authorization", `Bearer ${OPENCLAW_GATEWAY_TOKEN}`);
+  proxyReq.setHeader("x-openclaw-token", OPENCLAW_GATEWAY_TOKEN);
 });
 
 proxy.on("proxyReqWs", (proxyReq, req) => {
   // Set auth on the outgoing request to the gateway (proxyReq), not the incoming req.
-  if (!proxyReq.getHeader("authorization") && OPENCLAW_GATEWAY_TOKEN) {
-    proxyReq.setHeader("Authorization", `Bearer ${OPENCLAW_GATEWAY_TOKEN}`);
-  }
-  if (!proxyReq.getHeader("x-openclaw-token") && OPENCLAW_GATEWAY_TOKEN) {
-    proxyReq.setHeader("x-openclaw-token", OPENCLAW_GATEWAY_TOKEN);
-  }
+  if (!OPENCLAW_GATEWAY_TOKEN) return;
+  proxyReq.setHeader("Authorization", `Bearer ${OPENCLAW_GATEWAY_TOKEN}`);
+  proxyReq.setHeader("x-openclaw-token", OPENCLAW_GATEWAY_TOKEN);
 });
 
 app.use(requireDashboardAuth, async (req, res) => {
