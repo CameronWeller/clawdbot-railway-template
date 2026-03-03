@@ -411,6 +411,60 @@ app.get("/setup/app.js", requireSetupAuth, (_req, res) => {
   res.send(fs.readFileSync(path.join(process.cwd(), "src", "setup-app.js"), "utf8"));
 });
 
+// --- Ergonomics presets (read-only; used by Setup UI) ---
+const PRESETS_PATH = path.join(process.cwd(), "docs", "agent-ergonomics-presets.json5");
+function loadPresetsData() {
+  try {
+    const raw = fs.readFileSync(PRESETS_PATH, "utf8");
+    return JSON.parse(raw);
+  } catch (err) {
+    console.warn("[wrapper] presets file missing or invalid:", err?.message);
+    return null;
+  }
+}
+function getPresetBlock(data, id) {
+  if (!data?.presets) return null;
+  if (data.presets[id]) return data.presets[id];
+  const [category, key] = String(id).split(".");
+  if (category && key && data.presets[category]?.[key]) return data.presets[category][key];
+  return null;
+}
+app.get("/setup/api/presets/catalog", requireSetupAuth, (_req, res) => {
+  const data = loadPresetsData();
+  if (!data?.presets) return res.json({ ok: true, presets: [] });
+  const list = [];
+  for (const [catKey, cat] of Object.entries(data.presets)) {
+    if (cat && typeof cat === "object" && !Array.isArray(cat) && (cat.label || cat.block)) {
+      list.push({ id: catKey, label: cat.label || catKey, description: cat.description || "" });
+    } else if (cat && typeof cat === "object" && !Array.isArray(cat)) {
+      for (const [key, entry] of Object.entries(cat)) {
+        if (entry && typeof entry === "object" && (entry.label || entry.block)) {
+          list.push({
+            id: `${catKey}.${key}`,
+            label: entry.label || key,
+            description: entry.description || "",
+          });
+        }
+      }
+    }
+  }
+  res.json({ ok: true, presets: list });
+});
+app.get("/setup/api/presets/:id", requireSetupAuth, (req, res) => {
+  const id = String(req.params.id || "").trim();
+  if (!id) return res.status(400).json({ ok: false, error: "Missing preset id" });
+  const data = loadPresetsData();
+  const preset = getPresetBlock(data, id);
+  if (!preset) return res.status(404).json({ ok: false, error: "Preset not found" });
+  res.json({
+    ok: true,
+    id,
+    label: preset.label || id,
+    description: preset.description || "",
+    block: preset.block ?? preset,
+  });
+});
+
 app.get("/setup", requireSetupAuth, (_req, res) => {
   // No inline <script>: serve JS from /setup/app.js to avoid any encoding/template-literal issues.
   res.type("html").send(`<!doctype html>
@@ -487,6 +541,21 @@ app.get("/setup", requireSetupAuth, (_req, res) => {
       <button id="configSave" style="background:#111; margin-left:0.5rem">Save</button>
     </div>
     <pre id="configOut" style="white-space:pre-wrap"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Ergonomics presets</h2>
+    <p class="muted">Insert ready-made tool and skill snippets into the config editor. Fill placeholders (e.g. &lt;OPENAI_API_KEY&gt;) before saving.</p>
+    <label>Preset</label>
+    <select id="presetSelect" style="width:100%; margin-top:0.25rem">
+      <option value="">Loading…</option>
+    </select>
+    <div id="presetDescription" class="muted" style="margin-top:0.5rem; min-height:1.5em"></div>
+    <div style="margin-top:0.5rem; display:flex; gap:0.5rem; flex-wrap:wrap">
+      <button id="presetCopy" style="background:#1f2937">Copy JSON</button>
+      <button id="presetInsert" style="background:#0f172a">Insert into config</button>
+    </div>
+    <pre id="presetOut" style="white-space:pre-wrap; margin-top:0.5rem"></pre>
   </div>
 
   <div class="card">
@@ -1130,6 +1199,7 @@ app.post("/setup/api/console/run", requireSetupAuth, requireSetupCsrf, async (re
     if (cmd === "openclaw.config.set") {
       const path = String(arg || "").trim();
       const value = String((req.body && req.body.value) ?? "").trim();
+      // Safe preset-related paths only; no secrets or nested provider/skills entries.
       const ALLOWED_CONFIG_SET_PATHS = new Set([
         "gateway.bind",
         "gateway.port",
@@ -1137,6 +1207,7 @@ app.post("/setup/api/console/run", requireSetupAuth, requireSetupCsrf, async (re
         "tools.allow",
         "tools.deny",
         "tools.exec",
+        "agents.defaults.workspace",
       ]);
       if (!path || !ALLOWED_CONFIG_SET_PATHS.has(path)) {
         return res.status(400).json({

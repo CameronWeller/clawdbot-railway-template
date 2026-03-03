@@ -93,12 +93,13 @@ RUN printf '%s\n' '#!/usr/bin/env bash' 'exec node /openclaw/dist/entry.js "$@"'
   && chmod +x /usr/local/bin/openclaw
 
 COPY src ./src
+COPY docs ./docs
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY docker/entrypoint-tailscale.sh /usr/local/bin/entrypoint-tailscale.sh
 COPY docker/prestart-common.sh /usr/local/bin/prestart-common.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/entrypoint-tailscale.sh /usr/local/bin/prestart-common.sh \
-  && groupadd --system --gid 10001 openclaw \
-  && useradd --system --uid 10001 --gid openclaw --create-home --home-dir /home/openclaw openclaw
+  && groupadd --system --gid 110 openclaw \
+  && useradd --system --uid 110 --gid openclaw --create-home --home-dir /home/openclaw openclaw
 
 # Tailscale configuration for key-based SSH access
 # TS_AUTHKEY: MUST be set at runtime via Railway Variables or -e. Never commit a real key.

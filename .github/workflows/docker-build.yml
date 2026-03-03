@@ -23,6 +23,29 @@ jobs:
           context: .
           file: ./Dockerfile
           push: false
+          load: true
           tags: openclaw-railway-template:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # Run container and hit /healthz (same env/volume pattern as Railway and WSL smoke).
+      - name: Run container and smoke /healthz
+        run: |
+          mkdir -p .tmpdata
+          docker run --rm -d -p 8080:8080 \
+            -e PORT=8080 \
+            -e SETUP_PASSWORD=test \
+            -e OPENCLAW_STATE_DIR=/data/.openclaw \
+            -e OPENCLAW_WORKSPACE_DIR=/data/workspace \
+            -v "$(pwd)/.tmpdata:/data" \
+            --name clawdbot-ci \
+            openclaw-railway-template:ci
+          echo "Waiting for server..."
+          for i in $(seq 1 24); do
+            if curl -sf http://localhost:8080/healthz >/dev/null; then break; fi
+            if [ "$i" -eq 24 ]; then echo "Timeout waiting for /healthz"; docker logs clawdbot-ci; exit 1; fi
+            sleep 5
+          done
+          curl -sf http://localhost:8080/healthz && echo " /healthz OK"
+          curl -sf -u ":test" http://localhost:8080/setup/healthz && echo " /setup/healthz OK"
+          docker stop clawdbot-ci

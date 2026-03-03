@@ -65,9 +65,12 @@ openclaw doctor
 | OpenClaw state & config | `/data/.openclaw` |
 | Config file | `/data/.openclaw/openclaw.json` |
 | Workspace (skills, code) | `/data/workspace` |
+| Preinstalled skills | `/data/workspace/.openclaw/skills/*.md` (18+ files when `OPENCLAW_BOOTSTRAP_SKILLS=true`) |
 | Tailscale state | `/data/tailscale` |
 | npm globals | `/data/npm` (binaries in `/data/npm/bin`) |
 | pnpm | `/data/pnpm`, `/data/pnpm-store` |
+
+To enable the preinstalled skills in config, use the Setup UI **Ergonomics presets** card (choose "Workspace skills bundle" or "Full Railway ergonomics", then Insert into config and Save), or paste snippets from `docs/agent-ergonomics-presets.json5` (in the repo) into `/data/.openclaw/openclaw.json` and restart the gateway.
 
 In an SSH session, **export** these so the CLI matches the wrapper: `OPENCLAW_STATE_DIR=/data/.openclaw`, `OPENCLAW_WORKSPACE_DIR=/data/workspace` (or whatever you set in Railway Variables). The same paths are always in `/data/workspace/.openclaw-runtime.env` for the agent. The default agent has a **coding** tool profile; to restrict it see [docs/SECURITY.md](SECURITY.md#agent-tool-defaults-and-locking-down).
 

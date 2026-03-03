@@ -1,0 +1,115 @@
+{
+  "_comment": "Railway OpenClaw ergonomics presets. Copy blocks into openclaw.json or use Setup UI Insert preset. Replace placeholders (e.g. <OPENAI_API_KEY>) with real values.",
+  "presets": {
+    "tools": {
+      "defaultRailwayUseful": {
+        "label": "Default Railway (coding, no gateway)",
+        "description": "Safe default: fs, runtime, sessions, memory, image; gateway denied.",
+        "block": {
+          "tools": {
+            "profile": "coding",
+            "deny": ["gateway"],
+            "exec": { "host": "gateway", "security": "full" }
+          }
+        }
+      },
+      "extendedRailwayWithUI": {
+        "label": "Extended Railway (coding + web + UI)",
+        "description": "Adds web_search, web_fetch, browser, canvas; gateway still denied.",
+        "block": {
+          "tools": {
+            "profile": "coding",
+            "allow": [
+              "group:fs",
+              "group:runtime",
+              "group:sessions",
+              "group:memory",
+              "group:web",
+              "group:ui",
+              "image",
+              "cron",
+              "nodes",
+              "message"
+            ],
+            "deny": ["gateway"],
+            "exec": { "host": "gateway", "security": "full" },
+            "web": {
+              "search": { "enabled": true, "apiKey": "<BRAVE_SEARCH_API_KEY_OR_EMPTY>", "maxResults": 5, "timeoutSeconds": 30 },
+              "fetch": { "enabled": true, "maxChars": 50000, "timeoutSeconds": 30 }
+            }
+          }
+        }
+      }
+    },
+    "skills": {
+      "workspaceBundle": {
+        "label": "Workspace skills bundle",
+        "description": "Enable preinstalled workspace skills (files under /data/workspace/.openclaw/skills).",
+        "block": {
+          "skills": {
+            "load": { "extraDirs": ["/data/workspace/.openclaw/skills"] },
+            "entries": {
+              "railway-runtime": { "enabled": true },
+              "workspace-self-service": { "enabled": true },
+              "tailscale-troubleshooting": { "enabled": true },
+              "shell-diagnostics": { "enabled": true },
+              "toolset-tuning": { "enabled": true },
+              "backup-restore": { "enabled": true },
+              "plugin-lifecycle": { "enabled": true },
+              "cron-automation": { "enabled": true },
+              "web-research": { "enabled": true },
+              "browser-canvas": { "enabled": true },
+              "session-governance": { "enabled": true },
+              "memory-hygiene": { "enabled": true },
+              "config-templating": { "enabled": true },
+              "model-provider-onboarding": { "enabled": true },
+              "channels-health": { "enabled": true },
+              "git-repo-maintenance": { "enabled": true },
+              "secrets-hygiene": { "enabled": true },
+              "self-healing-runbooks": { "enabled": true }
+            }
+          }
+        }
+      }
+    },
+    "fullRailwayErgonomics": {
+      "label": "Full Railway ergonomics (merge snippet)",
+      "description": "Tools + skills + agents.defaults.workspace; merge into existing config or paste and fill placeholders.",
+      "block": {
+        "agents": {
+          "defaults": {
+            "workspace": "/data/workspace"
+          }
+        },
+        "tools": {
+          "profile": "coding",
+          "deny": ["gateway"],
+          "exec": { "host": "gateway", "security": "full" }
+        },
+        "skills": {
+          "load": { "extraDirs": ["/data/workspace/.openclaw/skills"] },
+          "entries": {
+            "railway-runtime": { "enabled": true },
+            "workspace-self-service": { "enabled": true },
+            "tailscale-troubleshooting": { "enabled": true },
+            "shell-diagnostics": { "enabled": true },
+            "toolset-tuning": { "enabled": true },
+            "backup-restore": { "enabled": true },
+            "plugin-lifecycle": { "enabled": true },
+            "cron-automation": { "enabled": true },
+            "web-research": { "enabled": true },
+            "browser-canvas": { "enabled": true },
+            "session-governance": { "enabled": true },
+            "memory-hygiene": { "enabled": true },
+            "config-templating": { "enabled": true },
+            "model-provider-onboarding": { "enabled": true },
+            "channels-health": { "enabled": true },
+            "git-repo-maintenance": { "enabled": true },
+            "secrets-hygiene": { "enabled": true },
+            "self-healing-runbooks": { "enabled": true }
+          }
+        }
+      }
+    }
+  }
+}

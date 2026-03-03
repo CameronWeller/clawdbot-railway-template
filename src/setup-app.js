@@ -21,6 +21,14 @@
   var configSaveEl = document.getElementById('configSave');
   var configOutEl = document.getElementById('configOut');
 
+  // Ergonomics presets
+  var presetSelectEl = document.getElementById('presetSelect');
+  var presetDescriptionEl = document.getElementById('presetDescription');
+  var presetCopyEl = document.getElementById('presetCopy');
+  var presetInsertEl = document.getElementById('presetInsert');
+  var presetOutEl = document.getElementById('presetOut');
+  var currentPresetBlock = null;
+
   // Import
   var importFileEl = document.getElementById('importFile');
   var importRunEl = document.getElementById('importRun');
@@ -240,6 +248,104 @@
 
   if (configReloadEl) configReloadEl.onclick = loadConfigRaw;
   if (configSaveEl) configSaveEl.onclick = saveConfigRaw;
+
+  // Ergonomics presets: catalog, fetch, copy, insert
+  function loadPresetsCatalog() {
+    if (!presetSelectEl) return;
+    presetSelectEl.innerHTML = '<option value="">Loading…</option>';
+    return httpJson('/setup/api/presets/catalog').then(function (j) {
+      var list = (j && j.presets) ? j.presets : [];
+      presetSelectEl.innerHTML = '';
+      var opt0 = document.createElement('option');
+      opt0.value = '';
+      opt0.textContent = '— Choose a preset —';
+      presetSelectEl.appendChild(opt0);
+      for (var i = 0; i < list.length; i++) {
+        var o = document.createElement('option');
+        o.value = list[i].id;
+        o.textContent = list[i].label;
+        presetSelectEl.appendChild(o);
+      }
+    }).catch(function (e) {
+      presetSelectEl.innerHTML = '<option value="">Error loading presets</option>';
+      if (presetOutEl) presetOutEl.textContent = 'Error: ' + String(e);
+    });
+  }
+
+  function fetchPreset(id) {
+    currentPresetBlock = null;
+    if (presetDescriptionEl) presetDescriptionEl.textContent = '';
+    if (presetOutEl) presetOutEl.textContent = '';
+    if (!id) return;
+    return httpJson('/setup/api/presets/' + encodeURIComponent(id)).then(function (j) {
+      if (j && j.block !== undefined) currentPresetBlock = j.block;
+      if (presetDescriptionEl) presetDescriptionEl.textContent = j.description || '';
+    }).catch(function (e) {
+      if (presetOutEl) presetOutEl.textContent = 'Error: ' + String(e);
+    });
+  }
+
+  function deepMerge(target, source) {
+    var out = {};
+    var k;
+    for (k in target) if (Object.prototype.hasOwnProperty.call(target, k)) out[k] = target[k];
+    for (k in source) {
+      if (Object.prototype.hasOwnProperty.call(source, k)) {
+        if (source[k] && typeof source[k] === 'object' && !Array.isArray(source[k]) &&
+            target[k] && typeof target[k] === 'object' && !Array.isArray(target[k])) {
+          out[k] = deepMerge(target[k], source[k]);
+        } else {
+          out[k] = source[k];
+        }
+      }
+    }
+    return out;
+  }
+
+  if (presetSelectEl) {
+    presetSelectEl.onchange = function () {
+      var id = presetSelectEl.value;
+      fetchPreset(id);
+    };
+  }
+  if (presetCopyEl) {
+    presetCopyEl.onclick = function () {
+      if (!currentPresetBlock) {
+        if (presetOutEl) presetOutEl.textContent = 'Select a preset first.';
+        return;
+      }
+      var jsonStr = JSON.stringify(currentPresetBlock, null, 2);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(jsonStr).then(function () {
+          if (presetOutEl) presetOutEl.textContent = 'Copied to clipboard.';
+        }).catch(function () {
+          if (presetOutEl) presetOutEl.textContent = jsonStr;
+        });
+      } else {
+        if (presetOutEl) presetOutEl.textContent = jsonStr;
+      }
+    };
+  }
+  if (presetInsertEl) {
+    presetInsertEl.onclick = function () {
+      if (!currentPresetBlock || !configTextEl) return;
+      var current = configTextEl.value.trim();
+      var base = {};
+      if (current) {
+        try {
+          base = JSON.parse(current);
+        } catch (e) {
+          if (presetOutEl) presetOutEl.textContent = 'Config is not valid JSON. Reload config or paste preset manually.';
+          return;
+        }
+      }
+      var merged = deepMerge(base, currentPresetBlock);
+      configTextEl.value = JSON.stringify(merged, null, 2);
+      if (presetOutEl) presetOutEl.textContent = 'Inserted. Review and click Save in Config editor to apply.';
+    };
+  }
+
+  loadPresetsCatalog();
 
   // Import backup
   function runImport() {

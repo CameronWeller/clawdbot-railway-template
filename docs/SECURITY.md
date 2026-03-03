@@ -142,9 +142,12 @@ If you see `Tailscale joined. Node ready for SSH access.` and `[wrapper] listeni
 
 The template configures the default agent with a **coding** tool profile (files, exec, sessions, memory, image) and `tools.deny: ["gateway"]` so agents cannot restart or update the gateway. Exec runs on the gateway (this container) with `security: full`; the process runs as the non-root `openclaw` user.
 
-To restrict the agent further:
+Preinstalled skills (18+ markdown files under `/data/workspace/.openclaw/skills` when `OPENCLAW_BOOTSTRAP_SKILLS=true`) include: railway-runtime, workspace-self-service, tailscale-troubleshooting, shell-diagnostics, toolset-tuning, backup-restore, plugin-lifecycle, cron-automation, web-research, browser-canvas, session-governance, memory-hygiene, config-templating, model-provider-onboarding, channels-health, git-repo-maintenance, secrets-hygiene, self-healing-runbooks. Enable them via Setup **Ergonomics presets** (Insert into config) or by merging snippets from `docs/agent-ergonomics-presets.json5`.
 
-- Set `tools.profile` to `messaging` or `minimal` (e.g. via Setup Run **openclaw.config.set** with path `tools.profile` and value `messaging`, or over SSH with `openclaw config set tools.profile minimal`).
+To restrict the agent further (downgrade from coding):
+
+- Set `tools.profile` to `messaging` or `minimal` (e.g. via Setup Debug Console **openclaw.config.set** with path `tools.profile` and value `messaging`, or over SSH with `openclaw config set tools.profile minimal`).
+- Use the **Ergonomics presets** card in Setup: choose "Default Railway (coding, no gateway)" and Insert into config, then Save, to reapply a safe tools block.
 - Use `tools.deny` to block specific tools or groups (e.g. `["group:runtime"]` to disable exec/bash/process).
 - Use OpenClaw’s exec security allowlist if you want to limit which binaries the agent can run (see OpenClaw docs; allowlist requires full binary paths).
 

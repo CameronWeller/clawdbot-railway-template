@@ -19,7 +19,14 @@ This repo packages **OpenClaw** for Railway with a small **/setup** web wizard s
 - During setup, the wrapper runs `openclaw onboard --non-interactive ...` inside the container, writes state to the volume, and then starts the gateway.
 - After setup, **`/` is OpenClaw**. The wrapper reverse-proxies all traffic (including WebSockets) to the local gateway process.
 
-## Railway deploy instructions (what you’ll publish as a Template)
+## Deployment and testing
+
+- **Full deployment reference** (Railway + Docker, env, volume, flexibility): [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+- **WSL Docker testing** (validate the same image locally before Railway): [docs/WSL-DOCKER-TESTING.md](docs/WSL-DOCKER-TESTING.md)
+- **Epic and roadmap** (goals, scope, validation): [docs/EPIC-AGENT-DEPLOYMENT.md](docs/EPIC-AGENT-DEPLOYMENT.md)
+
+
+## Railway deploy instructions (what you'll publish as a Template)
 
 In Railway Template Composer:
 
@@ -138,11 +145,15 @@ This image also supports non-root-safe preinstalls at startup (no `sudo` require
 | `OPENCLAW_PREINSTALL_PIP_PACKAGES` | _(empty)_ | Comma-separated python packages installed with `pip --user`. |
 | `OPENCLAW_EXPOSE_ENV_VARS` | _(empty)_ | Additional env var names appended to `/data/workspace/.openclaw-runtime.env` (paths are always written). |
 | `OPENCLAW_WRITE_AGENTS_MD` | `true` | Creates `/data/workspace/AGENTS.md` if missing. |
-| `OPENCLAW_BOOTSTRAP_SKILLS` | `true` | Creates starter skill markdown files under `/data/workspace/.openclaw/skills`. |
+| `OPENCLAW_BOOTSTRAP_SKILLS` | `true` | Creates 18+ starter skill markdown files under `/data/workspace/.openclaw/skills`. |
+
+**Agent skills and presets:** When `OPENCLAW_BOOTSTRAP_SKILLS` is true, the container seeds 18 skills (e.g. railway-runtime, workspace-self-service, shell-diagnostics, backup-restore, plugin-lifecycle, cron-automation, web-research, session-governance, memory-hygiene, config-templating, channels-health, git-repo-maintenance, secrets-hygiene, self-healing-runbooks, and others). In **Setup**, use the **Ergonomics presets** card to insert ready-made tool and skill snippets into the config editor (Copy JSON or Insert into config), then Save. Preset definitions live in `docs/agent-ergonomics-presets.json5`; replace placeholders like `<BRAVE_SEARCH_API_KEY_OR_EMPTY>` before saving.
 
 The template sets a **coding** tool profile for the default agent (files, exec, sessions, memory, image) and denies the `gateway` tool so agents cannot restart the gateway. Exec runs on the gateway (this container) with `security: full` (non-root). Paths `OPENCLAW_STATE_DIR` and `OPENCLAW_WORKSPACE_DIR` are always written to `/data/workspace/.openclaw-runtime.env` so the agent has context for running the OpenClaw CLI. To restrict the agent, override in config (e.g. `tools.profile` = `messaging` or `minimal`, or set `tools.deny` / exec security allowlist via Setup Run or SSH).
 
 **No systemd:** The gateway is wrapper-managed. `commands.restart` is set to `false` so `/restart` and the in-process gateway restart tool are disabled; use the Setup UI or SSH for restarts. `agents.defaults.workspace` is set to the configured workspace dir so the agent does not rely on `~/.openclaw/workspace`. Cron runs in-process inside the gateway (no system cron required).
+
+On every startup and after onboarding, the wrapper syncs these safe defaults: `tools.profile`, `tools.deny`, `tools.exec`, `commands.restart`, and `agents.defaults.workspace`. You can override them via the Setup config editor or Debug Console (`openclaw config set`).
 
 Example:
 
