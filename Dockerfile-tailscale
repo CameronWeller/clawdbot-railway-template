@@ -86,7 +86,7 @@ WORKDIR /app
 
 # Wrapper deps
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 
 # Copy built openclaw
 COPY --from=openclaw-build /openclaw /openclaw
@@ -100,7 +100,8 @@ COPY docs ./docs
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY docker/entrypoint-tailscale.sh /usr/local/bin/entrypoint-tailscale.sh
 COPY docker/prestart-common.sh /usr/local/bin/prestart-common.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/entrypoint-tailscale.sh /usr/local/bin/prestart-common.sh \
+RUN sed -i 's/\r$//' /usr/local/bin/entrypoint.sh /usr/local/bin/entrypoint-tailscale.sh /usr/local/bin/prestart-common.sh \
+  && chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/entrypoint-tailscale.sh /usr/local/bin/prestart-common.sh \
   && groupadd --system --gid 110 openclaw \
   && useradd --system --uid 110 --gid openclaw --create-home --home-dir /home/openclaw openclaw
 
