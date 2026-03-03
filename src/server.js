@@ -820,6 +820,25 @@ app.post("/setup/api/run", requireSetupAuth, requireSetupCsrf, async (req, res) 
       clawArgs(["config", "set", "--json", "gateway.trustedProxies", JSON.stringify(["127.0.0.1", "::1"])]),
     );
 
+    // Agent ergonomics: coding tool profile and safe exec defaults (best-effort).
+    for (const [label, args] of [
+      ["tools.profile", clawArgs(["config", "set", "tools.profile", "coding"])],
+      ["tools.deny", clawArgs(["config", "set", "--json", "tools.deny", JSON.stringify(["gateway"])])],
+      [
+        "tools.exec",
+        clawArgs(["config", "set", "--json", "tools.exec", JSON.stringify({ host: "gateway", security: "full" })]),
+      ],
+    ]) {
+      const r = await runCmd(OPENCLAW_NODE, args);
+      if (r.code !== 0) extra += `\n[tools ${label}] (best-effort) exit=${r.code}`;
+    }
+
+    // No systemd: lifecycle is wrapper-managed; disable /restart and gateway restart tool.
+    const rRestart = await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "commands.restart", "false"]));
+    if (rRestart.code !== 0) extra += `\n[commands.restart] (best-effort) exit=${rRestart.code}`;
+    const rWorkspace = await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "agents.defaults.workspace", WORKSPACE_DIR]));
+    if (rWorkspace.code !== 0) extra += `\n[agents.defaults.workspace] (best-effort) exit=${rWorkspace.code}`;
+
     // Optional: configure a custom OpenAI-compatible provider (base URL) for advanced users.
     if (payload.customProviderId?.trim() && payload.customProviderBaseUrl?.trim()) {
       const providerId = payload.customProviderId.trim();
@@ -1044,6 +1063,7 @@ const ALLOWED_CONSOLE_COMMANDS = new Set([
   "openclaw.doctor",
   "openclaw.logs.tail",
   "openclaw.config.get",
+  "openclaw.config.set",
 
   // Device management (for fixing "disconnected (1008): pairing required")
   "openclaw.devices.list",
@@ -1105,6 +1125,30 @@ app.post("/setup/api/console/run", requireSetupAuth, requireSetupCsrf, async (re
     if (cmd === "openclaw.config.get") {
       if (!arg) return res.status(400).json({ ok: false, error: "Missing config path" });
       const r = await runCmd(OPENCLAW_NODE, clawArgs(["config", "get", arg]));
+      return res.status(r.code === 0 ? 200 : 500).json({ ok: r.code === 0, output: redactSecrets(r.output) });
+    }
+    if (cmd === "openclaw.config.set") {
+      const path = String(arg || "").trim();
+      const value = String((req.body && req.body.value) ?? "").trim();
+      const ALLOWED_CONFIG_SET_PATHS = new Set([
+        "gateway.bind",
+        "gateway.port",
+        "tools.profile",
+        "tools.allow",
+        "tools.deny",
+        "tools.exec",
+      ]);
+      if (!path || !ALLOWED_CONFIG_SET_PATHS.has(path)) {
+        return res.status(400).json({
+          ok: false,
+          error: "Config path not allowed for set. Allowed: " + [...ALLOWED_CONFIG_SET_PATHS].join(", "),
+        });
+      }
+      if (!value) return res.status(400).json({ ok: false, error: "Missing value (use body.value)" });
+      const args = value.startsWith("{") || value.startsWith("[")
+        ? clawArgs(["config", "set", "--json", path, value])
+        : clawArgs(["config", "set", path, value]);
+      const r = await runCmd(OPENCLAW_NODE, args);
       return res.status(r.code === 0 ? 200 : 500).json({ ok: r.code === 0, output: redactSecrets(r.output) });
     }
 
@@ -1556,6 +1600,27 @@ const server = app.listen(PORT, "0.0.0.0", async () => {
         OPENCLAW_NODE,
         clawArgs(["config", "set", "--json", "gateway.trustedProxies", JSON.stringify(["127.0.0.1", "::1"])]),
       );
+
+      // Agent ergonomics: give the default agent a coding tool profile and safe exec defaults.
+      // Best-effort so older OpenClaw versions without these keys still work.
+      for (const [label, args] of [
+        ["tools.profile", clawArgs(["config", "set", "tools.profile", "coding"])],
+        ["tools.deny", clawArgs(["config", "set", "--json", "tools.deny", JSON.stringify(["gateway"])])],
+        [
+          "tools.exec",
+          clawArgs(["config", "set", "--json", "tools.exec", JSON.stringify({ host: "gateway", security: "full" })]),
+        ],
+      ]) {
+        const r = await runCmd(OPENCLAW_NODE, args);
+        if (r.code !== 0) console.warn(`[wrapper] tools config ${label} (best-effort) failed: exit=${r.code}`);
+      }
+
+      // No systemd: lifecycle is wrapper-managed; disable /restart and gateway restart tool; pin agent workspace.
+      const rRestart = await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "commands.restart", "false"]));
+      if (rRestart.code !== 0) console.warn("[wrapper] commands.restart (best-effort) failed: exit=", rRestart.code);
+      const rWorkspace = await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "agents.defaults.workspace", WORKSPACE_DIR]));
+      if (rWorkspace.code !== 0) console.warn("[wrapper] agents.defaults.workspace (best-effort) failed: exit=", rWorkspace.code);
+
       // Restart once after sync so all gateway components pick up config consistently.
       await restartGateway();
       console.log("[wrapper] gateway tokens and trustedProxies synced");

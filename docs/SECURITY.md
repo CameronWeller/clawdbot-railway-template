@@ -138,6 +138,18 @@ If you see `Tailscale joined. Node ready for SSH access.` and `[wrapper] listeni
 
 ---
 
+## Agent tool defaults and locking down
+
+The template configures the default agent with a **coding** tool profile (files, exec, sessions, memory, image) and `tools.deny: ["gateway"]` so agents cannot restart or update the gateway. Exec runs on the gateway (this container) with `security: full`; the process runs as the non-root `openclaw` user.
+
+To restrict the agent further:
+
+- Set `tools.profile` to `messaging` or `minimal` (e.g. via Setup Run **openclaw.config.set** with path `tools.profile` and value `messaging`, or over SSH with `openclaw config set tools.profile minimal`).
+- Use `tools.deny` to block specific tools or groups (e.g. `["group:runtime"]` to disable exec/bash/process).
+- Use OpenClaw’s exec security allowlist if you want to limit which binaries the agent can run (see OpenClaw docs; allowlist requires full binary paths).
+
+---
+
 ## Contributor checklist — before opening a PR
 
 Before pushing or opening a pull request, verify:

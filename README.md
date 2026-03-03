@@ -61,6 +61,8 @@ Use `Dockerfile-tailscale` for passwordless, key-based SSH access through your T
 3. Set `TS_HOSTNAME` to a name meaningful to you (e.g. `myapp-railway`). Default is the generic `openclaw-railway`.
 4. Deploy. SSH from any Tailscale device: `tailscale ssh <TS_HOSTNAME>`.
 
+**Once you have SSH:** See [docs/SSH-SETUP.md](docs/SSH-SETUP.md) for paths, OpenClaw commands, and optional health script.
+
 By default, Tailscale startup is **non-blocking**: if `tailscale up` fails, the wrapper still starts so `/setup` remains available.  
 Set `TS_STRICT=true` only if you want container startup to fail when Tailscale is unhealthy.
 
@@ -134,9 +136,13 @@ This image also supports non-root-safe preinstalls at startup (no `sudo` require
 | `OPENCLAW_AUTO_PREINSTALL` | `true` | Enables startup preinstall/bootstrap behavior. |
 | `OPENCLAW_PREINSTALL_NPM_PACKAGES` | `clawhub` | Comma-separated npm global packages installed into `/data/npm`. |
 | `OPENCLAW_PREINSTALL_PIP_PACKAGES` | _(empty)_ | Comma-separated python packages installed with `pip --user`. |
-| `OPENCLAW_EXPOSE_ENV_VARS` | _(empty)_ | Comma-separated env var names written to `/data/workspace/.openclaw-runtime.env`. |
+| `OPENCLAW_EXPOSE_ENV_VARS` | _(empty)_ | Additional env var names appended to `/data/workspace/.openclaw-runtime.env` (paths are always written). |
 | `OPENCLAW_WRITE_AGENTS_MD` | `true` | Creates `/data/workspace/AGENTS.md` if missing. |
 | `OPENCLAW_BOOTSTRAP_SKILLS` | `true` | Creates starter skill markdown files under `/data/workspace/.openclaw/skills`. |
+
+The template sets a **coding** tool profile for the default agent (files, exec, sessions, memory, image) and denies the `gateway` tool so agents cannot restart the gateway. Exec runs on the gateway (this container) with `security: full` (non-root). Paths `OPENCLAW_STATE_DIR` and `OPENCLAW_WORKSPACE_DIR` are always written to `/data/workspace/.openclaw-runtime.env` so the agent has context for running the OpenClaw CLI. To restrict the agent, override in config (e.g. `tools.profile` = `messaging` or `minimal`, or set `tools.deny` / exec security allowlist via Setup Run or SSH).
+
+**No systemd:** The gateway is wrapper-managed. `commands.restart` is set to `false` so `/restart` and the in-process gateway restart tool are disabled; use the Setup UI or SSH for restarts. `agents.defaults.workspace` is set to the configured workspace dir so the agent does not rely on `~/.openclaw/workspace`. Cron runs in-process inside the gateway (no system cron required).
 
 Example:
 
@@ -146,7 +152,7 @@ OPENCLAW_PREINSTALL_PIP_PACKAGES=awscli
 OPENCLAW_EXPOSE_ENV_VARS=OPENCLAW_STATE_DIR,OPENCLAW_WORKSPACE_DIR,OPENCLAW_GATEWAY_TOKEN
 ```
 
-> `OPENCLAW_EXPOSE_ENV_VARS` can expose secrets to agent-visible files. Only include variables you explicitly want surfaced in workspace context.
+> `OPENCLAW_EXPOSE_ENV_VARS` can expose secrets to agent-visible files. Only include variable names you explicitly want added to the runtime env file.
 
 Example `bootstrap.sh`:
 
