@@ -10,12 +10,16 @@
     "start": "node src/server.js",
     "lint": "node -c src/server.js",
     "test": "node --test",
-    "smoke": "node scripts/smoke.js"
+    "smoke": "node scripts/smoke.js",
+    "prepare": "lefthook install"
   },
   "dependencies": {
     "express": "^5.1.0",
     "http-proxy": "^1.18.1",
     "tar": "^7.5.9"
+  },
+  "devDependencies": {
+    "lefthook": "^2.1.0"
   },
   "overrides": {
     "qs": "^6.15.0"

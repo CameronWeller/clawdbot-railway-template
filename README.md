@@ -259,6 +259,10 @@ Recommendations:
 - Use a plan with **2GB+ memory**.
 - If you see `Reached heap limit Allocation failed - JavaScript heap out of memory`, upgrade memory and redeploy.
 
+## Git hooks (Lefthook)
+
+Pre-commit runs `npm run lint` and `npm run test`; pre-push runs the same checks. Hooks are installed when you run `npm install` (via the `prepare` script). To run manually: `npx lefthook run pre-commit` or `npx lefthook run pre-push`. Config: [lefthook.yml](lefthook.yml).
+
 ## Local smoke test
 
 ```bash

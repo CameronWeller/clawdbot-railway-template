@@ -1,0 +1,14 @@
+# Lefthook Git hooks — https://lefthook.dev
+# Install: npm install && lefthook install (or runs via prepare script)
+# pre-commit: script runs on every commit (lint + test). pre-push: test again.
+pre-commit:
+  jobs:
+    - name: check
+      script: check
+      runner: sh
+
+pre-push:
+  jobs:
+    - name: test
+      script: check
+      runner: sh
