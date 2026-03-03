@@ -1,6 +1,9 @@
 # Deployment reference
 
-This document is the single reference for deploying the OpenClaw agent on Railway and for running the same stack locally with Docker. For **local validation on WSL** before deploying, see [WSL-DOCKER-TESTING.md](WSL-DOCKER-TESTING.md).
+This document is the single reference for deploying the OpenClaw agent on Railway and for running the same stack locally with Docker.
+
+- **Local validation (WSL):** [WSL-DOCKER-TESTING.md](WSL-DOCKER-TESTING.md) — build and run the same image locally before deploying.
+- **Epic and validation:** [EPIC-AGENT-DEPLOYMENT.md](EPIC-AGENT-DEPLOYMENT.md) — goals, scope, and how we validate (CI, WSL, Railway).
 
 ---
 
@@ -123,7 +126,10 @@ Only the mounted volume persists. Use a host path (e.g. `.tmpdata`) or a named v
 
 ## See also
 
-- [README.md](../README.md) — Quick start, Tailscale quick setup, persistence, troubleshooting.
-- [WSL-DOCKER-TESTING.md](WSL-DOCKER-TESTING.md) — Validate Docker deployment on WSL before Railway.
-- [SECURITY.md](SECURITY.md) — Credentials, Tailscale ACL, contributor checklist.
-- [SSH-SETUP.md](SSH-SETUP.md) — SSH over Tailscale: connect, paths, OpenClaw commands.
+| Doc | Purpose |
+|-----|--------|
+| [README.md](../README.md) | Quick start, Tailscale, persistence, troubleshooting, local smoke test. |
+| [WSL-DOCKER-TESTING.md](WSL-DOCKER-TESTING.md) | Validate Docker on WSL (build, run, healthz) before Railway. |
+| [EPIC-AGENT-DEPLOYMENT.md](EPIC-AGENT-DEPLOYMENT.md) | Deployment epic: goals, deliverables, validation (CI + WSL + Railway). |
+| [SECURITY.md](SECURITY.md) | Credentials, Tailscale ACL, contributor checklist. |
+| [SSH-SETUP.md](SSH-SETUP.md) | SSH over Tailscale: connect, paths, OpenClaw commands. |

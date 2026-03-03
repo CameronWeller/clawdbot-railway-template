@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+# Enforce commit message: min length 10, optional conventional form type(scope): message.
+# Receives path to commit message file as $1.
+set -e
+msg_file="${1:?}"
+min_len=10
+subject=$(head -n1 "$msg_file" | sed 's/#.*//' | tr -d '\r\n')
+len=${#subject}
+if [ "$len" -lt "$min_len" ]; then
+  echo "Commit message too short (${len} chars). Use at least ${min_len} characters."
+  echo "Example: feat(setup): add health check"
+  exit 1
+fi
+# Optional: suggest conventional form (type(scope): message) if missing
+case "$subject" in
+  feat*|fix*|chore*|docs*|test*|refactor*|style*|ci*|build*|perf*) ;;
+  *) echo "Tip: consider conventional commits, e.g. feat(scope): message" >&2 ;;
+esac
+exit 0

@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+# Runs when src/ or test/ files are staged. Called by lefthook.
+set -e
+npm run test

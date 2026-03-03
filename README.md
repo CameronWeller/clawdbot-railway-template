@@ -261,7 +261,7 @@ Recommendations:
 
 ## Git hooks (Lefthook)
 
-Pre-commit runs `npm run lint` and `npm run test`; pre-push runs the same checks. Hooks are installed when you run `npm install` (via the `prepare` script). To run manually: `npx lefthook run pre-commit` or `npx lefthook run pre-push`. Config: [lefthook.yml](lefthook.yml).
+Pre-commit runs `npm run lint` every time and `npm run test` only when `src/` or `test/` have staged changes; pre-push runs the full test suite. Commit messages must be at least 10 characters (conventional form like `feat(scope): message` suggested). Hooks are installed when you run `npm install` (via the `prepare` script). To run manually: `npx lefthook run pre-commit` or `npx lefthook run pre-push`. Config: [lefthook.yml](lefthook.yml).
 
 ## Local smoke test
 
@@ -278,6 +278,8 @@ docker run --rm -p 8080:8080 \
 
 # open http://localhost:8080/setup (password: test)
 ```
+
+**WSL one-shot:** `./scripts/smoke.sh` builds, runs the container, curls `/healthz` and `/setup/healthz`, then stops. See [docs/WSL-DOCKER-TESTING.md](docs/WSL-DOCKER-TESTING.md).
 
 ---
 

@@ -100,10 +100,11 @@ The repo provides optional targets so you can run build/run/smoke with one comma
 | `make build` | Build the default image. |
 | `make run` | Run the container with `.tmpdata` and default env (password: `test`). |
 | `make smoke` | After container is running: curl `/healthz` and `/setup/healthz`. |
-| `scripts/docker-run-wsl.sh` | Convenience script to build and run (default image). Use from WSL/bash. |
+| `scripts/docker-run-wsl.sh` | Build and run (default image). Use from WSL/bash. |
+| `scripts/smoke.sh` | **WSL/bash:** build, run container detached, curl `/healthz` and `/setup/healthz`, then stop. One-shot smoke. |
 | `scripts/docker-run.ps1` | **Windows PowerShell:** build, run detached, and run smoke in one go. Requires Docker Desktop. |
 
-See the [Makefile](../Makefile) and [scripts/docker-run-wsl.sh](../scripts/docker-run-wsl.sh) for details. If you don’t use Make, the manual steps above are sufficient.
+See the [Makefile](../Makefile), [scripts/docker-run-wsl.sh](../scripts/docker-run-wsl.sh), and [scripts/smoke.sh](../scripts/smoke.sh) for details. If you don’t use Make, the manual steps above are sufficient.
 
 ---
 
@@ -120,4 +121,5 @@ If the container passes health and setup checks in WSL, it should behave the sam
 ## See also
 
 - [DEPLOYMENT.md](DEPLOYMENT.md) — Full deployment reference (Railway + Docker, env, flexibility).
+- [EPIC-AGENT-DEPLOYMENT.md](EPIC-AGENT-DEPLOYMENT.md) — Get started checklist and validation (CI, WSL, Railway).
 - [README.md](../README.md) — Local smoke test one-liner and troubleshooting.
