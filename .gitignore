@@ -5,6 +5,9 @@ npm-debug.log*
 # Local env
 .env
 
+# Local Docker test data (may contain credentials after setup)
+.tmpdata
+
 # Build artifacts
 /dist
 

@@ -31,10 +31,12 @@ jobs:
       # Run container and hit /healthz (same env/volume pattern as Railway and WSL smoke).
       - name: Run container and smoke /healthz
         run: |
-          mkdir -p .tmpdata
+          mkdir -p .tmpdata .tmpdata/.openclaw
+          cp test/fixtures/ci-openclaw.json .tmpdata/.openclaw/openclaw.json
           docker run --rm -d -p 8080:8080 \
             -e PORT=8080 \
             -e SETUP_PASSWORD=test \
+            -e OPENCLAW_GATEWAY_TOKEN=ci-test-token \
             -e OPENCLAW_STATE_DIR=/data/.openclaw \
             -e OPENCLAW_WORKSPACE_DIR=/data/workspace \
             -v "$(pwd)/.tmpdata:/data" \
@@ -49,3 +51,30 @@ jobs:
           curl -sf http://localhost:8080/healthz && echo " /healthz OK"
           curl -sf -u ":test" http://localhost:8080/setup/healthz && echo " /setup/healthz OK"
           docker stop clawdbot-ci
+
+      # Validate gateway startup: pre-seeded config triggers gateway; verify Control UI proxy.
+      - name: Run container and validate gateway + Control UI
+        run: |
+          mkdir -p .tmpdata
+          rm -rf .tmpdata/.openclaw .tmpdata/workspace
+          mkdir -p .tmpdata/.openclaw .tmpdata/workspace
+          cp test/fixtures/ci-openclaw.json .tmpdata/.openclaw/openclaw.json
+          docker run --rm -d -p 8080:8080 \
+            -e PORT=8080 \
+            -e SETUP_PASSWORD=test \
+            -e OPENCLAW_GATEWAY_TOKEN=ci-test-token \
+            -e OPENCLAW_STATE_DIR=/data/.openclaw \
+            -e OPENCLAW_WORKSPACE_DIR=/data/workspace \
+            -v "$(pwd)/.tmpdata:/data" \
+            --name clawdbot-ci-gateway \
+            openclaw-railway-template:ci
+          echo "Waiting for gateway and Control UI..."
+          for i in $(seq 1 36); do
+            if curl -sf -u ":test" http://localhost:8080/openclaw >/dev/null 2>&1; then break; fi
+            if [ "$i" -eq 36 ]; then
+              echo "Timeout waiting for /openclaw"; docker logs clawdbot-ci-gateway; exit 1
+            fi
+            sleep 5
+          done
+          curl -sf -u ":test" http://localhost:8080/openclaw >/dev/null && echo " /openclaw (gateway proxy) OK"
+          docker stop clawdbot-ci-gateway

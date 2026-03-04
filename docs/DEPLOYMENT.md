@@ -54,10 +54,10 @@ This repo contains **both** Railway config files. Which one Railway uses depends
 
 | File | Builder | When it’s used |
 |------|---------|----------------|
-| **railway.json** | `RAILPACK` | Often used when deploying from the Railway template or when Railway prefers the JSON schema. Build may use Nixpacks/Railpack. |
-| **railway.toml** | `dockerfile` | Explicit Dockerfile build. Specifies `healthcheckPath = "/setup/healthz"`, `requiredMountPath = "/data"`, and default variables. Use this when you want Railway to build from the Dockerfile. |
+| **railway.json** | `DOCKERFILE` | Primary config for the template. Explicitly uses the Dockerfile builder so the same image is built as in CI and WSL. |
+| **railway.toml** | `dockerfile` | Alternative config. Specifies `healthcheckPath = "/setup/healthz"`, `requiredMountPath = "/data"`, and default variables. Railway may prefer `railway.json` when both exist. |
 
-If you need the **Dockerfile** (default or Tailscale), ensure the project is configured to use the Dockerfile builder — e.g. set the builder to Dockerfile in the Railway dashboard, or rely on `railway.toml` if your project reads it. For the template, the one-click flow may use either; both result in the same runtime (volume at `/data`, same env).
+Both files specify Dockerfile-based builds. The template uses `railway.json` with `builder: "DOCKERFILE"` so the one-click flow builds the same image as local WSL and CI. For Tailscale, set `RAILWAY_DOCKERFILE_PATH=Dockerfile-tailscale` in Railway Variables.
 
 ---
 
