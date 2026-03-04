@@ -37,6 +37,7 @@ jobs:
             -e PORT=8080 \
             -e SETUP_PASSWORD=test \
             -e OPENCLAW_GATEWAY_TOKEN=ci-test-token \
+            -e OPENCLAW_SKIP_CONFIG_SYNC=true \
             -e OPENCLAW_STATE_DIR=/data/.openclaw \
             -e OPENCLAW_WORKSPACE_DIR=/data/workspace \
             -e OPENCLAW_AUTO_PREINSTALL=false \
@@ -67,6 +68,7 @@ jobs:
             -e PORT=8080 \
             -e SETUP_PASSWORD=test \
             -e OPENCLAW_GATEWAY_TOKEN=ci-test-token \
+            -e OPENCLAW_SKIP_CONFIG_SYNC=true \
             -e OPENCLAW_STATE_DIR=/data/.openclaw \
             -e OPENCLAW_WORKSPACE_DIR=/data/workspace \
             -e OPENCLAW_AUTO_PREINSTALL=false \

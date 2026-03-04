@@ -1687,7 +1687,9 @@ const server = app.listen(PORT, "0.0.0.0", async () => {
   // This prevents "gateway token mismatch" when OPENCLAW_GATEWAY_TOKEN changes
   // (e.g. Railway variable update) but the config file still has the old value.
   // trustedProxies ensures the gateway treats connections from the wrapper (127.0.0.1) as local.
-  if (isConfigured() && OPENCLAW_GATEWAY_TOKEN) {
+  // Skip when OPENCLAW_SKIP_CONFIG_SYNC=true (e.g. CI with pre-seeded config) to avoid
+  // config-change-triggered gateway restarts that cause startup instability.
+  if (isConfigured() && OPENCLAW_GATEWAY_TOKEN && !process.env.OPENCLAW_SKIP_CONFIG_SYNC) {
     console.log("[wrapper] syncing gateway tokens and trustedProxies in config...");
     try {
       // Bring up the wrapper-managed gateway first so config set calls can succeed reliably.
