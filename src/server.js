@@ -908,6 +908,33 @@ app.post("/setup/api/run", requireSetupAuth, requireSetupCsrf, async (req, res) 
     const rWorkspace = await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "agents.defaults.workspace", WORKSPACE_DIR]));
     if (rWorkspace.code !== 0) extra += `\n[agents.defaults.workspace] (best-effort) exit=${rWorkspace.code}`;
 
+    // Enable workspace skills by default so the agent gets self-service guidance (install tools, run CLI, etc.).
+    const skillsLoad = { extraDirs: ["/data/workspace/.openclaw/skills"] };
+    const skillsEntries = {
+      "railway-runtime": { enabled: true },
+      "workspace-self-service": { enabled: true },
+      "tailscale-troubleshooting": { enabled: true },
+      "shell-diagnostics": { enabled: true },
+      "toolset-tuning": { enabled: true },
+      "backup-restore": { enabled: true },
+      "plugin-lifecycle": { enabled: true },
+      "cron-automation": { enabled: true },
+      "web-research": { enabled: true },
+      "browser-canvas": { enabled: true },
+      "session-governance": { enabled: true },
+      "memory-hygiene": { enabled: true },
+      "config-templating": { enabled: true },
+      "model-provider-onboarding": { enabled: true },
+      "channels-health": { enabled: true },
+      "git-repo-maintenance": { enabled: true },
+      "secrets-hygiene": { enabled: true },
+      "self-healing-runbooks": { enabled: true },
+    };
+    const rSkillsLoad = await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "--json", "skills.load", JSON.stringify(skillsLoad)]));
+    if (rSkillsLoad.code !== 0) extra += `\n[skills.load] (best-effort) exit=${rSkillsLoad.code}`;
+    const rSkillsEntries = await runCmd(OPENCLAW_NODE, clawArgs(["config", "set", "--json", "skills.entries", JSON.stringify(skillsEntries)]));
+    if (rSkillsEntries.code !== 0) extra += `\n[skills.entries] (best-effort) exit=${rSkillsEntries.code}`;
+
     // Optional: configure a custom OpenAI-compatible provider (base URL) for advanced users.
     if (payload.customProviderId?.trim() && payload.customProviderBaseUrl?.trim()) {
       const providerId = payload.customProviderId.trim();
@@ -1199,7 +1226,7 @@ app.post("/setup/api/console/run", requireSetupAuth, requireSetupCsrf, async (re
     if (cmd === "openclaw.config.set") {
       const path = String(arg || "").trim();
       const value = String((req.body && req.body.value) ?? "").trim();
-      // Safe preset-related paths only; no secrets or nested provider/skills entries.
+      // Safe preset-related paths only; no secrets or nested provider config.
       const ALLOWED_CONFIG_SET_PATHS = new Set([
         "gateway.bind",
         "gateway.port",
@@ -1208,6 +1235,8 @@ app.post("/setup/api/console/run", requireSetupAuth, requireSetupCsrf, async (re
         "tools.deny",
         "tools.exec",
         "agents.defaults.workspace",
+        "skills.load",
+        "skills.entries",
       ]);
       if (!path || !ALLOWED_CONFIG_SET_PATHS.has(path)) {
         return res.status(400).json({

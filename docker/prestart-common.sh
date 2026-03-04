@@ -67,7 +67,7 @@ write_default_agent_files() {
     cat > "${agents_file}" <<'EOF'
 # Workspace Agent Guidance
 
-This workspace runs in Railway with a persistent volume at `/data`.
+This workspace runs in Railway with a persistent volume at `/data`. You are a fully capable agent: install tools, edit files, run commands.
 
 ## Environment
 - **State dir:** `/data/.openclaw` — config, credentials, gateway state.
@@ -75,14 +75,16 @@ This workspace runs in Railway with a persistent volume at `/data`.
 - **Runtime vars:** `/data/workspace/.openclaw-runtime.env` includes `OPENCLAW_STATE_DIR` and `OPENCLAW_WORKSPACE_DIR`; do not log or commit secrets from it.
 
 ## What you can do
-- Use **file tools** (read, write, edit) and **exec** (shell) in this workspace. Prefer paths under `/data/workspace` and `/data/.openclaw` for persistence.
-- Run the **OpenClaw CLI** for diagnostics: set `OPENCLAW_STATE_DIR=/data/.openclaw` and `OPENCLAW_WORKSPACE_DIR=/data/workspace` (e.g. source or read from `.openclaw-runtime.env`), then run `openclaw health`, `openclaw status`, `openclaw logs --tail N`, etc.
-- You have coding-style tools (fs, runtime, sessions, memory, image). Exec runs on the gateway (this container); no sudo.
+- **File tools:** Read, write, edit under `/data/workspace` and `/data/.openclaw`. All changes persist across restarts.
+- **Exec:** Run shell commands with workdir `/data/workspace` or `/data`. Commands run as the gateway user (no sudo).
+- **Install your own tools:** npm/pnpm/pip installs persist under `/data`. Use `npm i -g <pkg>`, `pnpm add -g <pkg>`, or `pip install --user <pkg>`. Binaries land in `/data/npm/bin` and `/data/pnpm` (already in PATH).
+- **OpenClaw CLI:** Source `/data/workspace/.openclaw-runtime.env` then run `openclaw health`, `openclaw config set`, etc. You can enable skills or adjust config via `openclaw config set --json skills.load '{"extraDirs":["/data/workspace/.openclaw/skills"]}'` and similar.
+- **Coding tools:** fs, runtime, sessions, memory, image. Gateway tool is denied; use Setup UI or SSH for restarts.
 
 ## Constraints
-- No sudo; Tailscale and the wrapper handle networking and auth. Do not print secrets in logs or commit them to git.
-- **Gateway:** Wrapper-managed (no systemd). Use Setup UI or SSH for restarts, not `/restart` or systemctl. Ignore "systemd not installed" in status.
-- **Bootstrap:** `/data/workspace/bootstrap.sh` runs at wrapper startup if present; use it for one-time setup (e.g. venv, symlinks), not for secrets.
+- No sudo; do not print secrets in logs or commit them to git.
+- **Gateway:** Wrapper-managed. Use Setup UI or SSH for restarts, not `/restart` or systemctl.
+- **API keys:** Model provider credentials are set by the operator via Setup; you cannot add them.
 EOF
     chmod 644 "${agents_file}" || true
     chown "${APP_USER}:${APP_GROUP}" "${agents_file}" || true
@@ -110,11 +112,12 @@ EOF
       cat > "${skills_dir}/workspace-self-service.md" <<'EOF'
 # Skill: Workspace Self-Service
 
-You can manage your own environment within this deploy:
+You can manage your own environment. Install tools, edit files, run commands—no operator approval needed for these.
 
 - **Run commands:** Use exec with workdir `/data/workspace` or `/data`. Commands run as the gateway user (no sudo).
-- **Edit files:** Use read/write/edit under `/data/workspace` and `/data/.openclaw` for persistence.
-- **OpenClaw CLI:** To run `openclaw` from a task (e.g. health, logs), ensure `OPENCLAW_STATE_DIR` and `OPENCLAW_WORKSPACE_DIR` are set. Read or source `/data/workspace/.openclaw-runtime.env`, then run e.g. `openclaw health` or `openclaw logs --tail 200`.
+- **Edit files:** Use read/write/edit under `/data/workspace` and `/data/.openclaw`. All changes persist.
+- **Install tools:** `npm i -g <pkg>`, `pnpm add -g <pkg>`, `pip install --user <pkg>`. Installs go to `/data/npm`, `/data/pnpm`, or user site; binaries are in PATH. Persists across restarts.
+- **OpenClaw CLI:** Source `/data/workspace/.openclaw-runtime.env` then run `openclaw health`, `openclaw config set`, `openclaw logs --tail 200`, etc. You can enable skills or tweak config via `openclaw config set`.
 - **Web and sessions:** Use web_fetch if enabled; use sessions and memory tools as needed.
 EOF
       chmod 644 "${skills_dir}/workspace-self-service.md" || true
@@ -140,6 +143,7 @@ EOF
 
 - Use exec with workdir `/data/workspace` or `/data` for persistent output.
 - For OpenClaw CLI: source or read `/data/workspace/.openclaw-runtime.env` then run `openclaw health`, `openclaw status`, `openclaw logs --tail N`, `openclaw doctor`.
+- Install tools as needed: `npm i -g <pkg>`, `pnpm add -g <pkg>`, `pip install --user <pkg>`. They persist under `/data`.
 - Prefer `set -e` and short scripts; capture stderr. No sudo; commands run as the gateway user.
 EOF
       chmod 644 "${skills_dir}/shell-diagnostics.md" || true
@@ -151,7 +155,7 @@ EOF
 # Skill: Toolset Tuning
 
 - Your tool profile is set in config (e.g. coding: fs, runtime, sessions, memory, image). Gateway tool is denied by default.
-- To change tools: operator uses Setup UI config editor or `openclaw config set` over SSH. You cannot change your own tool allow/deny.
+- You can run `openclaw config set` via exec (source `.openclaw-runtime.env` first) to enable skills, change skills.entries, or adjust agents.defaults.workspace. For tools.profile and tools.deny, the operator typically applies changes via Setup or SSH.
 - Prefer read/write/edit and exec within `/data/workspace` and `/data/.openclaw` for persistence.
 EOF
       chmod 644 "${skills_dir}/toolset-tuning.md" || true
@@ -246,9 +250,9 @@ EOF
       cat > "${skills_dir}/config-templating.md" <<'EOF'
 # Skill: Config Templating
 
-- Main config is at `/data/.openclaw/openclaw.json`. Operators edit via Setup UI (Config editor) or SSH. You can read it for diagnostics if allowed; do not write secrets.
-- Preset snippets are in docs/agent-ergonomics-presets; operators paste them into the config editor and fill placeholders.
-- To suggest a config change: describe the JSON path and value; the operator applies it via Setup or `openclaw config set`.
+- Main config is at `/data/.openclaw/openclaw.json`. You can read it for diagnostics. Do not write secrets.
+- You can apply config changes via exec: source `/data/workspace/.openclaw-runtime.env` then `openclaw config set --json <path> '<value>'`. Safe paths: skills.load, skills.entries, agents.defaults.workspace, tools.profile, tools.deny, tools.exec. Do not set provider credentials or gateway tokens.
+- Preset snippets are in docs/agent-ergonomics-presets; use them as reference when building config values.
 EOF
       chmod 644 "${skills_dir}/config-templating.md" || true
       chown "${APP_USER}:${APP_GROUP}" "${skills_dir}/config-templating.md" || true
