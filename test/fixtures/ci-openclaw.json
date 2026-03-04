@@ -1,0 +1,15 @@
+{
+  "gateway": {
+    "mode": "local",
+    "auth": { "mode": "token", "token": "ci-test-token" },
+    "remote": { "token": "ci-test-token" },
+    "trustedProxies": ["127.0.0.1", "::1"]
+  },
+  "agents": { "defaults": { "workspace": "/data/workspace" } },
+  "tools": {
+    "profile": "coding",
+    "deny": ["gateway"],
+    "exec": { "host": "gateway", "security": "full" }
+  },
+  "commands": { "restart": false }
+}
