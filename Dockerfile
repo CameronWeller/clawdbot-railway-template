@@ -2,8 +2,8 @@
 FROM node:22-bookworm AS openclaw-build
 
 # Dependencies needed for openclaw build (cache mounts speed repeated CI/builds)
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+RUN --mount=type=cache,id=apt-cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=apt-lib,target=/var/lib/apt,sharing=locked \
   apt-get update \
   && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     git \
@@ -40,7 +40,7 @@ RUN set -eux; \
 # We intentionally rewrite dependency specifiers above to avoid unpublished-version drift
 # in upstream extension manifests. That makes the upstream lockfile stale by definition,
 # so `--frozen-lockfile` will fail here. Cache pnpm store across builds.
-RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
   pnpm install --no-frozen-lockfile
 RUN pnpm build
 ENV OPENCLAW_PREFER_PNPM=1
