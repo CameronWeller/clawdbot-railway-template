@@ -39,21 +39,23 @@ jobs:
             -e OPENCLAW_GATEWAY_TOKEN=ci-test-token \
             -e OPENCLAW_STATE_DIR=/data/.openclaw \
             -e OPENCLAW_WORKSPACE_DIR=/data/workspace \
+            -e OPENCLAW_AUTO_PREINSTALL=false \
             -v "$(pwd)/.tmpdata:/data" \
             --name clawdbot-ci \
             openclaw-railway-template:ci
           echo "Waiting for server..."
           for i in $(seq 1 24); do
-            if curl -sf http://localhost:8080/healthz >/dev/null; then break; fi
+            if curl -sf --connect-timeout 5 --max-time 10 http://localhost:8080/healthz >/dev/null; then break; fi
             if [ "$i" -eq 24 ]; then echo "Timeout waiting for /healthz"; docker logs clawdbot-ci; exit 1; fi
-            sleep 5
+            sleep 2
           done
-          curl -sf http://localhost:8080/healthz && echo " /healthz OK"
-          curl -sf -u ":test" http://localhost:8080/setup/healthz && echo " /setup/healthz OK"
+          curl -sf --connect-timeout 5 --max-time 10 http://localhost:8080/healthz && echo " /healthz OK"
+          curl -sf --connect-timeout 5 --max-time 10 -u ":test" http://localhost:8080/setup/healthz && echo " /setup/healthz OK"
           docker stop clawdbot-ci
 
       # Validate gateway startup: pre-seeded config triggers gateway; verify Control UI proxy.
       - name: Run container and validate gateway + Control UI
+        timeout-minutes: 3
         run: |
           mkdir -p .tmpdata
           # Container creates files as openclaw user (uid 110); reclaim ownership so rm works
@@ -67,18 +69,20 @@ jobs:
             -e OPENCLAW_GATEWAY_TOKEN=ci-test-token \
             -e OPENCLAW_STATE_DIR=/data/.openclaw \
             -e OPENCLAW_WORKSPACE_DIR=/data/workspace \
+            -e OPENCLAW_AUTO_PREINSTALL=false \
             -v "$(pwd)/.tmpdata:/data" \
             --name clawdbot-ci-gateway \
             openclaw-railway-template:ci
           echo "Waiting for gateway and Control UI..."
-          for i in $(seq 1 36); do
-            if curl -sf -u ":test" http://localhost:8080/openclaw >/dev/null 2>&1; then break; fi
-            if [ "$i" -eq 36 ]; then
+          CURL_OPTS='--connect-timeout 5 --max-time 15 -u ":test"'
+          for i in $(seq 1 24); do
+            if curl -sf $CURL_OPTS http://localhost:8080/openclaw >/dev/null 2>&1; then break; fi
+            if [ "$i" -eq 24 ]; then
               echo "Timeout waiting for /openclaw"; docker logs clawdbot-ci-gateway; exit 1
             fi
-            sleep 5
+            sleep 2
           done
-          curl -sf -u ":test" http://localhost:8080/openclaw >/dev/null && echo " /openclaw (gateway proxy) OK"
+          curl -sf $CURL_OPTS http://localhost:8080/openclaw >/dev/null && echo " /openclaw (gateway proxy) OK"
           docker stop clawdbot-ci-gateway
 
       # Reclaim ownership of container-created files so workspace cleanup succeeds
