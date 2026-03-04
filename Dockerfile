@@ -29,10 +29,19 @@ WORKDIR /openclaw
 ARG OPENCLAW_GIT_REF=v2026.2.9
 RUN git clone --depth 1 --branch "${OPENCLAW_GIT_REF}" https://github.com/openclaw/openclaw.git .
 
-# Deterministic install: use frozen lockfile for reproducible builds.
-# If upstream adds workspace:* or strict ranges that cause install to fail, see docs/UNFINISHED_WORK.md (UW-20260302-01).
+# Patch: relax version requirements for packages that may reference unpublished versions.
+# Apply to all extension package.json files to handle workspace protocol (workspace:*).
+RUN set -eux; \
+  find ./extensions -name 'package.json' -type f | while read -r f; do \
+    sed -i -E 's/"openclaw"[[:space:]]*:[[:space:]]*">=[^"]+"/"openclaw": "*"/g' "$f"; \
+    sed -i -E 's/"openclaw"[[:space:]]*:[[:space:]]*"workspace:[^"]+"/"openclaw": "*"/g' "$f"; \
+  done
+
+# We intentionally rewrite dependency specifiers above to avoid unpublished-version drift
+# in upstream extension manifests. That makes the upstream lockfile stale by definition,
+# so `--frozen-lockfile` will fail here. Cache pnpm store across builds.
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
-  pnpm install --frozen-lockfile
+  pnpm install --no-frozen-lockfile
 RUN pnpm build
 ENV OPENCLAW_PREFER_PNPM=1
 RUN pnpm ui:install && pnpm ui:build

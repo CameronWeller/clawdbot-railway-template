@@ -18,14 +18,14 @@ Use this file to track work that was started but not completed in the same sessi
 ## Active Items
 
 ### UW-20260302-01 - Restore deterministic OpenClaw build lockfile
-- Status: needs-verification
+- Status: deferred
 - Owner: @maintainers
 - Area: `Dockerfile` openclaw build stage
 - Started: 2026-03-02
-- Context: The Docker build previously rewrote extension `package.json` dependencies from `workspace:*` / strict ranges to `*` before install. That broke lockfile parity. We removed the rewrite and restored `pnpm install --frozen-lockfile` for deterministic builds.
-- Why unfinished: CI must validate the build passes. If it fails (e.g. upstream tag has unpublished deps), revert to the rewrite + `--no-frozen-lockfile` and document in this file.
-- Next step: Confirm CI passes. If it fails, revert Dockerfile and add: "Re-enable rewrite (see git history) and use `--no-frozen-lockfile` until upstream fixes packaging."
-- Depends on: upstream OpenClaw packaging at pinned tag v2026.2.9
+- Context: The Docker build rewrites extension `package.json` dependencies from `workspace:*` / strict ranges to `*` before install to avoid upstream unpublished-version drift. This rewrite breaks lockfile parity and fails with `pnpm install --frozen-lockfile`. Attempted removal of rewrite (2026-03-04) caused Docker build to fail; reverted.
+- Why unfinished: A robust fix requires either removing the rewrite entirely (if upstream no longer needs it), or generating/committing a lockfile aligned to rewritten manifests for each pinned OpenClaw tag.
+- Next step: Test build with rewrite removed when upstream tag changes; if successful, delete rewrite + restore `--frozen-lockfile`. Otherwise, move rewrite logic upstream or pre-generate a tag-specific patched lockfile artifact.
+- Depends on: upstream OpenClaw packaging behavior
 - Links: none
 
 ### Entry template
