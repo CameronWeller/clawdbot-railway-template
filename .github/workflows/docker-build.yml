@@ -56,6 +56,8 @@ jobs:
       - name: Run container and validate gateway + Control UI
         run: |
           mkdir -p .tmpdata
+          # Container creates files as openclaw user (uid 110); reclaim ownership so rm works
+          sudo chown -R "$(whoami):$(whoami)" .tmpdata 2>/dev/null || true
           rm -rf .tmpdata/.openclaw .tmpdata/workspace
           mkdir -p .tmpdata/.openclaw .tmpdata/workspace
           cp test/fixtures/ci-openclaw.json .tmpdata/.openclaw/openclaw.json
@@ -78,3 +80,8 @@ jobs:
           done
           curl -sf -u ":test" http://localhost:8080/openclaw >/dev/null && echo " /openclaw (gateway proxy) OK"
           docker stop clawdbot-ci-gateway
+
+      # Reclaim ownership of container-created files so workspace cleanup succeeds
+      - name: Fix permissions for cleanup
+        if: always()
+        run: sudo chown -R "$(whoami):$(whoami)" .tmpdata 2>/dev/null || true
