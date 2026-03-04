@@ -3,10 +3,20 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import util from "node:util";
 
 import express from "express";
 import httpProxy from "http-proxy";
 import * as tar from "tar";
+
+// http-proxy@1.18.1 (latest stable, 2019) calls util._extend inside its request handlers.
+// Node >=22 emits DEP0060 for util._extend. For the plain-object merges that http-proxy
+// performs (e.g. util._extend({}, options, req)), both functions behave identically —
+// no setters, no non-enumerable properties, no Symbol keys are involved.
+// This shim is a well-established workaround for DEP0060 in http-proxy@1.x.
+if (typeof util._extend === "function" && util._extend !== Object.assign) {
+  util._extend = Object.assign;
+}
 
 // Migrate deprecated CLAWDBOT_* env vars → OPENCLAW_* so existing Railway deployments
 // keep working. Users should update their Railway Variables to use the new names.
@@ -261,17 +271,23 @@ async function ensureGatewayRunning() {
   return { ok: true };
 }
 
-async function restartGateway() {
-  if (gatewayProc) {
-    try {
-      gatewayProc.kill("SIGTERM");
-    } catch {
-      // ignore
-    }
-    // Give it a moment to exit and release the port.
-    await sleep(750);
-    gatewayProc = null;
+// Stop the wrapper-managed gateway process if it is currently running.
+// Sends SIGTERM and waits 750 ms so the port is free before the caller starts a new instance.
+// Safe to call when gatewayProc is null (no-op).
+async function stopGatewayIfRunning() {
+  if (!gatewayProc) return;
+  try {
+    gatewayProc.kill("SIGTERM");
+  } catch {
+    // ignore
   }
+  // Brief grace period so the gateway releases the port before we start a new process.
+  await sleep(750);
+  gatewayProc = null;
+}
+
+async function restartGateway() {
+  await stopGatewayIfRunning();
   return ensureGatewayRunning();
 }
 
@@ -868,9 +884,12 @@ app.post("/setup/api/run", requireSetupAuth, requireSetupCsrf, async (req, res) 
 
   // Optional setup (only after successful onboarding).
   if (ok) {
-    // `openclaw config set` can require a reachable gateway.
-    // Ensure the wrapper-managed gateway is up before mutating token-related config.
-    await ensureGatewayRunning();
+    // Do NOT start the gateway before applying config changes.  The gateway's config-file
+    // watcher (reload) sends SIGUSR1 on every write, so starting it first would trigger a
+    // gateway restart per config set command – the restart loop visible in production logs.
+    // openclaw config set only reads/writes the config file; it does not call the gateway API.
+    // restartGateway() at the end brings the gateway up once with the fully-applied config.
+    await stopGatewayIfRunning();
 
     // Ensure gateway token is written into config so the browser UI can authenticate reliably.
     // (We also enforce loopback bind since the wrapper proxies externally.)
@@ -1595,10 +1614,28 @@ function attachGatewayAuthHeader(req) {
   req.headers["x-openclaw-token"] = OPENCLAW_GATEWAY_TOKEN;
 }
 
+// Inject the gateway token into the URL of every proxied request (both HTTP and WS).
+// OpenClaw's gateway and Control UI read the token from the ?token= query parameter.
+// Header injection alone (Authorization / x-openclaw-token) is insufficient for the
+// Control UI WebSocket handshake, which requires the token in the URL so the gateway
+// can embed it in the dashboard and validate WS connections (reason=token_missing fix).
+function injectTokenIntoPath(proxyReq) {
+  if (!OPENCLAW_GATEWAY_TOKEN) return;
+  const currentPath = proxyReq.path;
+  if (!currentPath.includes("token=")) {
+    proxyReq.path =
+      currentPath +
+      (currentPath.includes("?") ? "&" : "?") +
+      "token=" +
+      encodeURIComponent(OPENCLAW_GATEWAY_TOKEN);
+  }
+}
+
 proxy.on("proxyReq", (proxyReq) => {
   if (!OPENCLAW_GATEWAY_TOKEN) return;
   proxyReq.setHeader("Authorization", `Bearer ${OPENCLAW_GATEWAY_TOKEN}`);
   proxyReq.setHeader("x-openclaw-token", OPENCLAW_GATEWAY_TOKEN);
+  injectTokenIntoPath(proxyReq);
 });
 
 proxy.on("proxyReqWs", (proxyReq, req) => {
@@ -1606,6 +1643,7 @@ proxy.on("proxyReqWs", (proxyReq, req) => {
   if (!OPENCLAW_GATEWAY_TOKEN) return;
   proxyReq.setHeader("Authorization", `Bearer ${OPENCLAW_GATEWAY_TOKEN}`);
   proxyReq.setHeader("x-openclaw-token", OPENCLAW_GATEWAY_TOKEN);
+  injectTokenIntoPath(proxyReq);
 });
 
 app.use(requireDashboardAuth, async (req, res) => {
@@ -1692,8 +1730,12 @@ const server = app.listen(PORT, "0.0.0.0", async () => {
   if (isConfigured() && OPENCLAW_GATEWAY_TOKEN && !process.env.OPENCLAW_SKIP_CONFIG_SYNC) {
     console.log("[wrapper] syncing gateway tokens and trustedProxies in config...");
     try {
-      // Bring up the wrapper-managed gateway first so config set calls can succeed reliably.
-      await ensureGatewayRunning();
+      // Do NOT start the gateway before applying config changes.  The gateway's config-file
+      // watcher (reload) sends SIGUSR1 on every write, so starting it first triggers a gateway
+      // restart per config-set command – the restart loop visible in production logs.
+      // openclaw config set only reads/writes the config file; it does not call the gateway API.
+      // Kill any stale gateway proc so the port is free when restartGateway() is called below.
+      await stopGatewayIfRunning();
 
       await runCmdChecked(OPENCLAW_NODE, clawArgs(["config", "set", "gateway.auth.mode", "token"]));
       await runCmdChecked(OPENCLAW_NODE, clawArgs(["config", "set", "gateway.auth.token", OPENCLAW_GATEWAY_TOKEN]));
