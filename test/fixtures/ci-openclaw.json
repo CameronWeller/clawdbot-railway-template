@@ -1,3 +1,4 @@
 {
+  "gateway": { "mode": "local" },
   "agents": { "defaults": { "workspace": "/data/workspace" } }
 }
